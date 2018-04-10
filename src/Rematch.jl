@@ -1,8 +1,13 @@
 module Rematch
 
-using Delve.Util
 import MacroTools
 import MacroTools: @capture
+
+macro splice(iterator, body)
+  @assert iterator.head == :call
+  @assert iterator.args[1] == :in
+  Expr(:..., :(($(esc(body)) for $(esc(iterator.args[2])) in $(esc(iterator.args[3])))))
+end
 
 struct MatchFailure
     value
