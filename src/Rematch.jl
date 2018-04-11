@@ -3,6 +3,8 @@ module Rematch
 import MacroTools
 import MacroTools: @capture
 
+const check_field_types = Ref(false)
+
 macro splice(iterator, body)
   @assert iterator.head == :call
   @assert iterator.args[1] == :in
@@ -13,9 +15,59 @@ struct MatchFailure
     value
 end
 
-function assert_num_fields(::Type{T}, matched::Integer) where {T}
+is_splat(pattern) = pattern isa Expr && pattern.head == :(...)
+
+@inline function assert_num_fields(::Type{T}, matched::Integer) where {T}
     actual = length(fieldnames(T))
-    @assert actual == matched "Tried to match $matched fields of $actual field struct $T"
+    @assert actual == matched "Tried to match $matched fields of $actual field struct $T. This match can never succeed."
+end
+
+@inline function assert_field_type(::Type{T}, ::Type{Val{Field}}, ::Type{Matched}) where {T, Field, Matched}
+    actual = fieldtype(T, Field)
+    @assert typeintersect(Matched, actual) != Union{} "Tried to match pattern of type $Matched against field $Field of struct $T which has type $actual. This match can never succeed."
+end
+
+function pattern_type(pattern)
+    if pattern == :(_)
+        # wildcard
+        Any
+    elseif !(pattern isa Expr || pattern isa Symbol) ||
+           pattern == :nothing ||
+           @capture(pattern, _quote_macrocall) ||
+           @capture(pattern, Symbol(_))
+        # constant
+        typeof(pattern)
+    elseif @capture(pattern, subpattern_Symbol)
+        # variable
+        Any
+    elseif @capture(pattern, subpattern1_ || subpattern2_)
+        # disjunction
+        Union(pattern_type(subpattern1), pattern_type(subpattern2))
+    elseif @capture(pattern, _where)
+        # guard
+        subpattern = pattern.args[1]
+        pattern_type(subpattern)
+    elseif @capture(pattern, T_Symbol(subpatterns__))
+        # struct
+        T
+    elseif @capture(pattern, (subpatterns__,))
+        # tuple
+        if any!(is_splat, subpatterns)
+            Tuple
+        else
+            Tuple{map(pattern_type, subpatterns)...}
+        end
+    elseif @capture(pattern, [subpatterns__])
+        # array
+        Vector{typejoin(map(subpatterns) do subpattern
+            is_splat(subpattern) ? Any : pattern_type(subpattern)
+        end...)}
+    elseif @capture(pattern, subpattern_::T_)
+        # typeassert
+        typeintersect(pattern_type(subpattern), T)
+    else
+        error("Unrecognized pattern syntax: $pattern")
+    end
 end
 
 function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::Symbol, bound::Set{Symbol}, asserts::Vector{Expr}; allow_splat=true)
@@ -23,8 +75,9 @@ function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::S
     fields = []
     seen_splat = false
     for (i,subpattern) in enumerate(subpatterns)
-        if (subpattern isa Expr) && (subpattern.head == :(...))
-            @assert allow_splat && !seen_splat "Too many ... in pattern $pattern"
+        if is_splat(subpattern)
+            @assert allow_splat "... is not allowed in pattern $pattern"
+            @assert !seen_splat "Too many ... in pattern $pattern"
             @assert length(subpattern.args) == 1
             seen_splat = true
             push!(fields, (:($i:($len-$(length(subpatterns)-i))), subpattern.args[1]))
@@ -108,6 +161,15 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         push!(asserts, quote
             assert_num_fields($(esc(T)), $(length(subpatterns)))
         end)
+        if check_field_types[]
+            for (i, subpattern) in enumerate(subpatterns)
+                if !is_splat(subpattern)
+                    push!(asserts, quote
+                        assert_field_type($(esc(T)), Val{$i}, $(esc(pattern_type(subpattern))))
+                    end)
+                end
+            end
+        end
         quote
             typeof($value) == $(esc(T)) &&
             $(handle_destruct_fields(value, pattern, subpatterns, length(subpatterns), :getfield, bound, asserts; allow_splat=false))

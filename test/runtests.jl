@@ -4,6 +4,8 @@ using Rematch
 import Rematch: MatchFailure
 using Base.Test
 
+Rematch.check_field_types[] = true
+
 # --- basic tests ---
 
 struct Foo
@@ -149,11 +151,27 @@ end
 @test_throws AssertionError @match Foo(x) = Foo(1,2)
 @test_throws AssertionError @match Foo(x,y,z) = Foo(1,2)
 
-# would be nice if this would throw - need to move asserts to the top of the match
+# check number of field for structs
 @test_throws AssertionError (@match Foo(1,2) begin
     Foo(x,y) => :ok
     Foo(x) => :nope
 end)
+
+struct Bar
+    x::Int64
+end
+
+# check types of fields for structs
+@test_throws AssertionError (@match Bar(1) begin
+    Bar("nope") => :ok
+end)
+
+# check that disabling the test works
+Rematch.check_field_types[] = false
+@test_throws MatchFailure (@match Bar(1) begin
+    Bar("nope") => :ok
+end)
+Rematch.check_field_types[] = true
 
 # match against fiddly symbols (https://github.com/kmsquire/Match.jl/issues/32)
 @test (@match :(@when a < b) begin
@@ -369,5 +387,7 @@ test_interp(item) = @match item begin
     [a, b] => :($a + $b)
 end
 @test test_interp([1, 2]) == :(1 + 2)
+
+Rematch.check_field_types[] = false
 
 end
