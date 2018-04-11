@@ -150,7 +150,7 @@ end
 @test_throws AssertionError @match Foo(x,y,z) = Foo(1,2)
 
 # would be nice if this would throw - need to move asserts to the top of the match
-@test_broken (@match Foo(1,2) begin
+@test_throws AssertionError (@match Foo(1,2) begin
     Foo(x,y) => :ok
     Foo(x) => :nope
 end)
