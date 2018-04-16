@@ -109,7 +109,8 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             assert_num_fields($(esc(T)), $(length(subpatterns)))
         end)
         quote
-            typeof($value) == $(esc(T)) &&
+            # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type information in Julia 0.6
+            $value isa $(esc(T)) &&
             $(handle_destruct_fields(value, pattern, subpatterns, length(subpatterns), :getfield, bound, asserts; allow_splat=false))
         end
     elseif @capture(pattern, (subpatterns__,))
