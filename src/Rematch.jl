@@ -24,7 +24,7 @@ end
 
 @inline function assert_field_type(::Type{T}, ::Type{Val{Field}}, ::Type{Matched}) where {T, Field, Matched}
     actual = fieldtype(T, Field)
-    @assert typeintersect(Matched, actual) != Union{} "Tried to match pattern of type $Matched against $T.$(fieldname(T,Field))::$actual. This match can never succeed."
+    @assert typeintersect(Matched, actual) != Union{} "Tried to match pattern of type $Matched against field $Field of struct $T which has type $actual. This match can never succeed."
 end
 
 function pattern_type(pattern)
