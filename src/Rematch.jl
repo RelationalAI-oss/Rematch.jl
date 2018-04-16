@@ -103,7 +103,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 $(esc(guard))
             end
         end
-    elseif @capture(pattern, T_Symbol(subpatterns__))
+    elseif @capture(pattern, T_(subpatterns__))
         # struct
         push!(asserts, quote
             assert_num_fields($(esc(T)), $(length(subpatterns)))
