@@ -55,16 +55,16 @@ function pattern_type(pattern)
         if any!(is_splat, subpatterns)
             Tuple
         else
-            :($Tuple{$(map(pattern_type, subpatterns))...})
+            Tuple{map(pattern_type, subpatterns)...}
         end
     elseif @capture(pattern, [subpatterns__])
         # array
-        :($Vector{typejoin($(map(subpatterns) do subpattern
+        Vector{typejoin(map(subpatterns) do subpattern
             is_splat(subpattern) ? Any : pattern_type(subpattern)
-        end...))})
+        end...)}
     elseif @capture(pattern, subpattern_::T_)
         # typeassert
-        :(typeintersect($(pattern_type(subpattern)), $T))
+        typeintersect(pattern_type(subpattern), T)
     else
         error("Unrecognized pattern syntax: $pattern")
     end
