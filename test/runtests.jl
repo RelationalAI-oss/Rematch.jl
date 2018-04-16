@@ -149,7 +149,7 @@ end
 @test_throws AssertionError @match Foo(x) = Foo(1,2)
 @test_throws AssertionError @match Foo(x,y,z) = Foo(1,2)
 
-# would be nice if this would throw - need to move asserts to the top of the match
+# ...even if the pattern is not reached
 @test_throws AssertionError (@match Foo(1,2) begin
     Foo(x,y) => :ok
     Foo(x) => :nope
