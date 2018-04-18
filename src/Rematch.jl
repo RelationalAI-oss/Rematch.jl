@@ -88,6 +88,13 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         quote
             $body1 || $body2
         end
+    elseif @capture(pattern, subpattern1_ && subpattern2_)
+        # conjunction
+        body1 = handle_destruct(value, subpattern1, bound1, asserts)
+        body2 = handle_destruct(value, subpattern2, bound2, asserts)
+        quote
+            $body1 && $body2
+        end
     elseif @capture(pattern, _where)
         # guard
         @assert length(pattern.args) == 2
