@@ -71,6 +71,14 @@ end) == 3
   _ => :ok
 end) == :ok
 
+# conjunction
+@test (@match (1,(2,3)) begin
+    (1, a && (2,b)) => (a,b)
+end) == ((2,3),3)
+@test_throws MatchFailure (@match (1,(2,3)) begin
+    (1, a && (1,b)) => (a,b)
+end) == ((2,3),3)
+
 # only vars that exist in all branches can be accessed
 @test_throws UndefVarError @eval @match (1,(2,3)) begin
   (1, (x,:nope) || (2,y)) => y
