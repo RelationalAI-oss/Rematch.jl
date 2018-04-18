@@ -80,7 +80,8 @@ Returns `result` for the first matching pattern. If there are no matching patter
 * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
 * `(x,y...,z)` matches `Tuple`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
 * `_::T` matches any subtype (`isa`) of T
-* `x || y` matches `x` or `y` (only variables which exist in both branches will be bound)
+* `x || y` matches values which match either `x` or `y` (only variables which exist in both branches will be bound)
+* `x && y` matches values which match both `x` and `y`
 * `x where condition` matches only if `condition` is true (`condition` may use any variables that occur earlier in the pattern eg `(x, y, z where x + y > z)`)
 * Anything else is treated as a constant and tested for equality
 
