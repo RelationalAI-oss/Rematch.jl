@@ -102,16 +102,18 @@ end
 @test test0((1,2,3,4)) == ((1,), 2, 3, 4)
 @test test0((1,2,3,4,5)) == ((1,2), 3, 4, 5)
 
+assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
+
 # no splats allowed in structs (would be nice, but need to implement getfield(struct, range))
-@test_throws AssertionError @eval @match foo begin
+@test_throws assertion_error @eval @match foo begin
     Foo(x...) => :nope
 end
 
 # at most one splat in tuples/arrays
-@test_throws AssertionError @eval @match [1,2,3] begin
+@test_throws assertion_error @eval @match [1,2,3] begin
     [a...,b,c...] => :nope
 end
-@test_throws AssertionError @eval @match [1,2,3] begin
+@test_throws assertion_error @eval @match [1,2,3] begin
     (a...,b,c...) => :nope
 end
 
@@ -123,8 +125,13 @@ end
 infer2(x) = @match x begin
     (a, b..., c) => c
 end
-# can't infer x[4-0] - fixed in Julia 0.7
-@test_broken @code_typed(infer2((1,2,3,:ok)))[2] == Symbol
+
+if VERSION >= v"0.7.0-DEV"
+    @test @code_typed(infer2((1,2,3,:ok)))[2] == Symbol
+else
+    # can't infer x[4-0] - fixed in Julia 0.7
+    @test_broken @code_typed(infer2((1,2,3,:ok)))[2] == Symbol
+end
 
 # inference in branches
 infer3(foo) = @match foo begin
@@ -164,10 +171,17 @@ end
 end)
 
 # match against fiddly symbols (https://github.com/kmsquire/Match.jl/issues/32)
-@test (@match :(@when a < b) begin
-  Expr(_, [Symbol("@when"), _], _) => :ok
-  Expr(_, [other, _], _) => other
-end) == :ok
+if VERSION >= v"0.7.0-DEV"
+    @test (@match :(@when a < b) begin
+           Expr(_, [Symbol("@when"), _, _], _) => :ok
+           Expr(_, [other, _, _], _) => other
+           end) == :ok
+else
+    @test (@match :(@when a < b) begin
+           Expr(_, [Symbol("@when"), _], _) => :ok
+           Expr(_, [other, _], _) => other
+           end) == :ok
+end
 
 # test repeated variables (https://github.com/kmsquire/Match.jl/issues/27)
 @test (@match (x,x) = (1,1)) == (1,1)
