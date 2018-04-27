@@ -21,6 +21,13 @@ x = nothing
 @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
 @test x == nothing
 
+# doesn't overwrite variables in outer scope
+x = nothing
+@test (@match Foo(1,2) begin
+    Foo(x,2) => x
+end) == 1
+@test x == nothing
+
 # variables not bound if guard fails
 x = nothing
 @test_throws MatchFailure @match Foo(1,2) begin

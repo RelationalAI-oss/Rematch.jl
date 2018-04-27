@@ -143,28 +143,18 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
     end
 end
 
-function handle_capture(value, pattern, asserts)
-    bound = Set{Symbol}()
-    quote
-        $(handle_destruct(:value, pattern, bound, asserts)) &&
-        begin
-            # export bindings
-            $(@splice variable in bound quote
-                $(esc(variable)) = $(Symbol("variable_$variable"))
-            end)
-            true
-        end
-    end
-end
-
 function handle_match_eq(expr)
     if @capture(expr, pattern_ = value_)
         asserts = Expr[]
-        body = handle_capture(:value, pattern, asserts)
+        bound = Set{Symbol}()
+        body = handle_destruct(:value, pattern, bound, asserts)
         quote
             $(asserts...)
             value = $(esc(value))
             $body || throw(MatchFailure(value))
+            $(@splice variable in bound quote
+                $(esc(variable)) = $(Symbol("variable_$variable"))
+            end)
             value
         end
     else
@@ -174,9 +164,17 @@ end
 
 function handle_match_case(value, case, tail, asserts)
     if @capture(case, pattern_ => result_)
+        bound = Set{Symbol}()
+        body = handle_destruct(:value, pattern, bound, asserts)
         quote
-            if $(handle_capture(value, pattern, asserts))
-                $(esc(result))
+            if $body
+                let $(bound...)
+                    # export bindings
+                    $(@splice variable in bound quote
+                      $(esc(variable)) = $(Symbol("variable_$variable"))
+                      end)
+                    $(esc(result))
+                end
             else
                 $tail
             end
