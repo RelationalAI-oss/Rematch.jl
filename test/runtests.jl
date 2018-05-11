@@ -212,6 +212,17 @@ x = 42
   (:x,) => x
 end) == 42
 
+# allow & and | for conjunction/disjunction (https://github.com/RelationalAI-oss/Rematch.jl/issues/1)
+@test (@match (1,(2,3)) begin
+  (1, (x,:nope) | (2,x)) => x
+end) == 3
+@test (@match (1,(2,3)) begin
+    (1, a & (2,b)) => (a,b)
+end) == ((2,3),3)
+
+# don't treat infix operators like structs
+@test_throws AssertionError @eval @match a + b = x
+
 # --- tests from Match.jl ---
 
 # Type matching

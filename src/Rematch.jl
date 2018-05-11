@@ -77,7 +77,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 true
             end
         end
-    elseif @capture(pattern, subpattern1_ || subpattern2_)
+    elseif @capture(pattern, subpattern1_ || subpattern2_) || (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :|)
         # disjunction
         # need to only bind variables which exist in both branches
         bound1 = copy(bound)
@@ -88,7 +88,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         quote
             $body1 || $body2
         end
-    elseif @capture(pattern, subpattern1_ && subpattern2_)
+    elseif @capture(pattern, subpattern1_ && subpattern2_) || (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :&)
         # conjunction
         body1 = handle_destruct(value, subpattern1, bound, asserts)
         body2 = handle_destruct(value, subpattern2, bound, asserts)
@@ -111,6 +111,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             end
         end
     elseif @capture(pattern, T_(subpatterns__))
+        @assert ismatch(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
         # struct
         push!(asserts, quote
             assert_num_fields($(esc(T)), $(length(subpatterns)))
