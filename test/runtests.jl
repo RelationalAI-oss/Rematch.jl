@@ -221,7 +221,12 @@ end) == 3
 end) == ((2,3),3)
 
 # don't treat infix operators like structs
-@test_throws AssertionError @eval @match a + b = x
+if VERSION >= v"0.7.0-DEV"
+    @test_throws LoadError @eval @match a + b = x
+else
+    @test_throws AssertionError @eval @match a + b = x
+end
+
 
 # --- tests from Match.jl ---
 
@@ -379,7 +384,7 @@ function balance(tree::RBTree)
          || Black(x, a, Red(z, Red(y, b, c), d))
          || Black(x, a, Red(y, b, Red(z, c, d)))) => Red(y, Black(x, a, b),
                                                          Black(z, c, d))
-        tree => tree
+        _ => tree
     end
 end
 
