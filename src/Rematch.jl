@@ -2,6 +2,7 @@ module Rematch
 
 import MacroTools
 import MacroTools: @capture
+import Compat: occursin
 
 macro splice(iterator, body)
   @assert iterator.head == :call
@@ -111,7 +112,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             end
         end
     elseif @capture(pattern, T_(subpatterns__))
-        @assert ismatch(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
+        @assert occursin(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
         # struct
         push!(asserts, quote
             assert_num_fields($(esc(T)), $(length(subpatterns)))
