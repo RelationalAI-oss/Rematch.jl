@@ -15,7 +15,7 @@ struct MatchFailure
 end
 
 function assert_num_fields(::Type{T}, matched::Integer) where {T}
-    actual = length(fieldnames(T))
+    actual = fieldcount(T)
     @assert actual == matched "Tried to match $matched fields of $actual field struct $T"
 end
 
