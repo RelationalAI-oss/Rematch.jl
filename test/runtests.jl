@@ -2,7 +2,7 @@ module TestRematch
 
 using Rematch
 import Rematch: MatchFailure
-using Base.Test
+using Compat: Test
 
 # --- basic tests ---
 
@@ -53,7 +53,7 @@ end) == :ok
 # disjunction
 @test (@match (1,(2,3)) begin
   (1, (x,:nope) || (2,x)) => x
-end) == 3
+end) == 4
 
 # disjunction and repeated variables
 @test (@match (1,(2,3), 3) begin
