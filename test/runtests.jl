@@ -180,8 +180,8 @@ end)
 # match against fiddly symbols (https://github.com/kmsquire/Match.jl/issues/32)
 if VERSION >= v"0.7.0-DEV"
     @test (@match :(@when a < b) begin
-           Expr(_, [Symbol("@when"), _, _], _) => :ok
-           Expr(_, [other, _, _], _) => other
+           Expr(_, [Symbol("@when"), _, _]) => :ok
+           Expr(_, [other, _, _]) => other
            end) == :ok
 else
     @test (@match :(@when a < b) begin
