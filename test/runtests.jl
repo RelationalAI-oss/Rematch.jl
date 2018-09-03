@@ -53,7 +53,7 @@ end) == :ok
 # disjunction
 @test (@match (1,(2,3)) begin
   (1, (x,:nope) || (2,x)) => x
-end) == 4
+end) == 3
 
 # disjunction and repeated variables
 @test (@match (1,(2,3), 3) begin
