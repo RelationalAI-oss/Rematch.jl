@@ -2,7 +2,7 @@ module TestRematch
 
 using Rematch
 import Rematch: MatchFailure
-using Compat: Test
+using Compat.Test
 
 # --- basic tests ---
 
