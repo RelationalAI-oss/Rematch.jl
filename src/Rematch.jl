@@ -2,7 +2,7 @@ module Rematch
 
 import MacroTools
 import MacroTools: @capture
-import Compat: occursin
+import Compat: occursin, fieldcount
 
 macro splice(iterator, body)
   @assert iterator.head == :call
