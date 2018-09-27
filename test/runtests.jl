@@ -1,5 +1,6 @@
 module TestRematch
 
+using InteractiveUtils
 using Rematch
 import Rematch: MatchFailure
 using Compat.Test
@@ -12,28 +13,71 @@ struct Foo
 end
 
 # test basic match
-x = nothing
-@test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
-@test x == 1
+begin
+    local x = nothing
+    @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
+    @test x == 1
+end
 
 # variables not bound if match fails
-x = nothing
-@test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
-@test x == nothing
+begin
+    local x = nothing
+    @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
+    @test x == nothing
+end
 
 # doesn't overwrite variables in outer scope
-x = nothing
-@test (@match Foo(1,2) begin
-    Foo(x,2) => x
-end) == 1
-@test x == nothing
+begin
+    local x = nothing
+    @test (@match Foo(1,2) begin
+        Foo(x,2) => x
+    end) == 1
+    @test x == nothing
+end
 
 # variables not bound if guard fails
-x = nothing
-@test_throws MatchFailure @match Foo(1,2) begin
-  Foo(x, 2) where x != 1 => :ok
+begin
+    local x = nothing
+    @test_throws MatchFailure @match Foo(1,2) begin
+      Foo(x, 2) where x != 1 => :ok
+    end
+    @test x == nothing
 end
-@test x == nothing
+
+# match one struct field by name
+begin
+    local x1 = nothing
+    @test (@match Foo(1,2) begin
+           Foo(x=x1) => x1
+    end) == 1
+end
+
+# match struct with mix of by-value and by-field name
+begin
+    local x1 = nothing
+    @test (@match Foo(1,2) begin
+           Foo(0,2) => nothing
+           Foo(x=x1) => x1
+    end) == 1
+end
+
+# match multiple struct fields by name
+begin
+    local x1 = nothing
+    local y1 = nothing
+    @test (@match Foo(1,2) begin
+           Foo(x=x1,y=y1) => (x1,y1)
+    end) == (1,2)
+end
+
+# match struct field by name redundantly
+begin
+    local x1 = nothing
+    local x2 = nothing
+    @test_throws LoadError @eval @match Foo(1,2) begin
+           Foo(x=x1,x=x2) => (x1,x2)
+    end
+end
 
 # throw MatchFailure if no matches
 @test_throws MatchFailure @match :this begin
@@ -168,11 +212,11 @@ end
 end
 
 # detect incorrect numbers of fields
-@test_throws AssertionError @match Foo(x) = Foo(1,2)
-@test_throws AssertionError @match Foo(x,y,z) = Foo(1,2)
+@test_throws ErrorException @match Foo(x) = Foo(1,2)
+@test_throws ErrorException @match Foo(x,y,z) = Foo(1,2)
 
 # ...even if the pattern is not reached
-@test_throws AssertionError (@match Foo(1,2) begin
+@test_throws ErrorException (@match Foo(1,2) begin
     Foo(x,y) => :ok
     Foo(x) => :nope
 end)
@@ -207,10 +251,12 @@ e = (True(), 1)
 end) == 1
 
 # symbols are not interpreted as variables (https://github.com/kmsquire/Match.jl/issues/45)
-x = 42
-@test (@match (:x,) begin
-  (:x,) => x
-end) == 42
+begin
+    local x = 42
+    @test (@match (:x,) begin
+      (:x,) => x
+    end) == 42
+end
 
 # allow & and | for conjunction/disjunction (https://github.com/RelationalAI-oss/Rematch.jl/issues/1)
 @test (@match (1,(2,3)) begin
@@ -345,7 +391,7 @@ end
 
 @test parse_arg("-h") == parse_arg("--help") == "Help!"
 
-function fizzbuzz(range::Range)
+function fizzbuzz(range::AbstractRange)
     io = IOBuffer()
     for n in range
         @match (n % 3, n % 5) begin
