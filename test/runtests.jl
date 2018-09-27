@@ -7,6 +7,8 @@ using Rematch
 import Rematch: MatchFailure
 using Compat.Test
 
+assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
+
 # --- basic tests ---
 
 struct Foo
@@ -76,7 +78,7 @@ end
 begin
     local x1 = nothing
     local x2 = nothing
-    @test_throws LoadError @eval @match Foo(1,2) begin
+    @test_throws assertion_error @eval @match Foo(1,2) begin
            Foo(x=x1,x=x2) => (x1,x2)
     end
 end
@@ -154,8 +156,6 @@ end
 @test test0((1,2,3)) == ((), 1, 2, 3)
 @test test0((1,2,3,4)) == ((1,), 2, 3, 4)
 @test test0((1,2,3,4,5)) == ((1,2), 3, 4, 5)
-
-assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
 
 # no splats allowed in structs (would be nice, but need to implement getfield(struct, range))
 @test_throws assertion_error @eval @match foo begin
@@ -269,11 +269,7 @@ end) == 3
 end) == ((2,3),3)
 
 # don't treat infix operators like structs
-if VERSION >= v"0.7.0-DEV"
-    @test_throws LoadError @eval @match a + b = x
-else
-    @test_throws AssertionError @eval @match a + b = x
-end
+@test_throws assertion_error @eval @match a + b = x
 
 
 # --- tests from Match.jl ---
