@@ -1,6 +1,8 @@
 module TestRematch
 
-using InteractiveUtils
+if VERSION >= v"0.7.0-DEV"
+  using InteractiveUtils
+end
 using Rematch
 import Rematch: MatchFailure
 using Compat.Test
