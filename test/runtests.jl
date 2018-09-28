@@ -1,7 +1,9 @@
 module TestRematch
 
 if VERSION >= v"0.7.0-DEV"
-  using InteractiveUtils
+    using InteractiveUtils
+else
+    AbstractRange = Range
 end
 using Rematch
 import Rematch: MatchFailure
