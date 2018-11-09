@@ -23,6 +23,7 @@ end
 Statically get the fieldcount of a type. Useful to avoid runtime calls to
 fieldcount.
 """
+# TODO(nathan.daly) Does this need to be @generated, or is this function necessary?
 @generated function evaluated_fieldcount(t::Type{T}) where T
     fieldcount(T)
 end
@@ -40,8 +41,8 @@ function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::S
         elseif seen_splat
             push!(fields, (:($len-$(length(subpatterns)-i)), subpattern))
         elseif (subpattern isa Expr) && (subpattern.head == :kw)
-            T_sym = Meta.quot(subpattern.args[1])
-            push!(fields, (:($T_sym), subpattern.args[2]))
+            field_symbol = Meta.quot(subpattern.args[1])
+            push!(fields, (field_symbol, subpattern.args[2]))
         else
             push!(fields, (i, subpattern))
         end
@@ -128,10 +129,10 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         len = length(subpatterns)
         named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
         named_count = length(named_fields)
-        @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments: $(named_fields)"
-        @assert named_count == 0 || len == named_count "Pattern $pattern mixes named and positional arguments"
+        @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments ($(named_fields))."
+        @assert named_count == 0 || named_count == len "Pattern $pattern mixes named and positional arguments."
         if named_count == 0
-            # Uses positional variables
+            # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
             expected_fieldcount = gensym("$(T)_expected_fieldcount")
             actual_fieldcount = gensym("$(T)_actual_fieldcount")
             push!(asserts, quote
@@ -145,7 +146,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 end
             end)
         else
-            # Uses field names
+            # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
             # Could assert that the expected field names are a subset of the actual field names.
             # Can omit the assertion because if the field doesn't exist getfield() will fail with "type $T has no field $field".
         end

@@ -1,13 +1,9 @@
 module TestRematch
 
-if VERSION >= v"0.7.0-DEV"
-    using InteractiveUtils
-else
-    AbstractRange = Range
-end
+using Compat.InteractiveUtils
+using Compat.Test
 using Rematch
 import Rematch: MatchFailure
-using Compat.Test
 
 assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
 
@@ -19,22 +15,19 @@ struct Foo
 end
 
 # test basic match
-begin
-    local x = nothing
+let x = nothing
     @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
     @test x == 1
 end
 
 # variables not bound if match fails
-begin
-    local x = nothing
+let x = nothing
     @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
     @test x == nothing
 end
 
 # doesn't overwrite variables in outer scope
-begin
-    local x = nothing
+let x = nothing
     @test (@match Foo(1,2) begin
         Foo(x,2) => x
     end) == 1
@@ -42,8 +35,7 @@ begin
 end
 
 # variables not bound if guard fails
-begin
-    local x = nothing
+let x = nothing
     @test_throws MatchFailure @match Foo(1,2) begin
       Foo(x, 2) where x != 1 => :ok
     end
@@ -51,16 +43,14 @@ begin
 end
 
 # match one struct field by name
-begin
-    local x1 = nothing
+let x1 = nothing
     @test (@match Foo(1,2) begin
            Foo(x=x1) => x1
     end) == 1
 end
 
 # match struct with mix of by-value and by-field name
-begin
-    local x1 = nothing
+let x1 = nothing
     @test (@match Foo(1,2) begin
            Foo(0,2) => nothing
            Foo(x=x1) => x1
@@ -68,22 +58,41 @@ begin
 end
 
 # match multiple struct fields by name
-begin
-    local x1 = nothing
-    local y1 = nothing
+let x1 = nothing, y1 = nothing
     @test (@match Foo(1,2) begin
            Foo(x=x1,y=y1) => (x1,y1)
     end) == (1,2)
 end
 
 # match struct field by name redundantly
-begin
-    local x1 = nothing
-    local x2 = nothing
-    @test_throws assertion_error @eval @match Foo(1,2) begin
+let x1 = nothing, x2 = nothing
+    @test_throws assertion_error @eval (@match Foo(1,2) begin
            Foo(x=x1,x=x2) => (x1,x2)
-    end
+    end)
 end
+
+let x1 = 0
+    @test x1 == 0
+    @test (@match Foo(1,2) begin
+           Foo(x=x1, y=2) => (x1, 2)
+           end) == (1,2)
+    @test x1 == 0
+end
+
+# variables in patterns are local, and can match multiple positions
+let z = 0
+    @test z == 0
+    @test (@match Foo(1,1) begin
+           Foo(x=z, y=z) => z # inner z matches both x and y
+           end) == 1
+    @test z == 0 # no change to outer z
+end
+
+# variable in a pattern can match multiple positions
+@test_throws MatchFailure @eval (@match Foo(1,2) begin
+                                 Foo(x=x1, y=x1) => true
+                                 end)
+
 
 # throw MatchFailure if no matches
 @test_throws MatchFailure @match :this begin
@@ -255,8 +264,7 @@ e = (True(), 1)
 end) == 1
 
 # symbols are not interpreted as variables (https://github.com/kmsquire/Match.jl/issues/45)
-begin
-    local x = 42
+let x = 42
     @test (@match (:x,) begin
       (:x,) => x
     end) == 42
