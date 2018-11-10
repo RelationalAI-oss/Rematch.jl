@@ -1,9 +1,14 @@
 module TestRematch
 
-using Compat.InteractiveUtils
 using Compat.Test
 using Rematch
 import Rematch: MatchFailure
+
+if VERSION >= v"0.7.0-DEV"
+    using InteractiveUtils
+else
+    AbstractRange = Range
+end
 
 assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
 
