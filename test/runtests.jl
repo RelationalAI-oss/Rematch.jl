@@ -1,12 +1,11 @@
 module TestRematch
 
 using Compat.Test
+using Compat.InteractiveUtils
 using Rematch
 import Rematch: MatchFailure
 
-if VERSION >= v"0.7.0-DEV"
-    using InteractiveUtils
-else
+if VERSION < v"0.7.0-DEV"
     AbstractRange = Range
 end
 
