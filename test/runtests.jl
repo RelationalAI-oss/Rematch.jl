@@ -47,10 +47,13 @@ let x = nothing
 end
 
 # match one struct field by name
-let x1 = nothing
+let x = nothing
+    x1 = nothing
     @test (@match Foo(1,2) begin
            Foo(x=x1) => x1
     end) == 1
+    @test x == nothing
+    @test x1 == nothing
 end
 
 # match struct with mix of by-value and by-field name
@@ -73,14 +76,6 @@ let x1 = nothing, x2 = nothing
     @test_throws assertion_error @eval (@match Foo(1,2) begin
            Foo(x=x1,x=x2) => (x1,x2)
     end)
-end
-
-let x1 = 0
-    @test x1 == 0
-    @test (@match Foo(1,2) begin
-           Foo(x=x1, y=2) => (x1, 2)
-           end) == (1,2)
-    @test x1 == 0
 end
 
 # variables in patterns are local, and can match multiple positions
