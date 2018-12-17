@@ -19,6 +19,15 @@ function assert_num_fields(::Type{T}, matched::Integer) where {T}
     @assert actual == matched "Tried to match $matched fields of $actual field struct $T"
 end
 
+"""
+Statically get the fieldcount of a type. Useful to avoid runtime calls to
+fieldcount.
+"""
+# TODO(nathan.daly) Does this need to be @generated, or is this function necessary?
+@generated function evaluated_fieldcount(t::Type{T}) where T
+    fieldcount(T)
+end
+
 function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::Symbol, bound::Set{Symbol}, asserts::Vector{Expr}; allow_splat=true)
     # NOTE we assume `len` is cheap
     fields = []
@@ -31,6 +40,9 @@ function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::S
             push!(fields, (:($i:($len-$(length(subpatterns)-i))), subpattern.args[1]))
         elseif seen_splat
             push!(fields, (:($len-$(length(subpatterns)-i)), subpattern))
+        elseif (subpattern isa Expr) && (subpattern.head == :kw)
+            field_symbol = Meta.quot(subpattern.args[1])
+            push!(fields, (field_symbol, subpattern.args[2]))
         else
             push!(fields, (i, subpattern))
         end
@@ -112,11 +124,32 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             end
         end
     elseif @capture(pattern, T_(subpatterns__))
-        @assert occursin(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
         # struct
-        push!(asserts, quote
-            assert_num_fields($(esc(T)), $(length(subpatterns)))
-        end)
+        @assert occursin(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
+        len = length(subpatterns)
+        named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
+        named_count = length(named_fields)
+        @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments ($(named_fields))."
+        @assert named_count == 0 || named_count == len "Pattern $pattern mixes named and positional arguments."
+        if named_count == 0
+            # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
+            expected_fieldcount = gensym("$(T)_expected_fieldcount")
+            actual_fieldcount = gensym("$(T)_actual_fieldcount")
+            push!(asserts, quote
+                # This assertion is necessary:
+                # If $expected_fieldcount < $actual_fieldcount, to catch missing fields.
+                # If $expected_fieldcount > $actual_fieldcount, to avoid a BoundsError.
+                $expected_fieldcount = evaluated_fieldcount($(esc(T)))
+                $actual_fieldcount = $(esc(len))
+                if $expected_fieldcount != $actual_fieldcount
+                    error("Pattern field count is $($actual_fieldcount) expected $($expected_fieldcount)")
+                end
+            end)
+        else
+            # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
+            # Could assert that the expected field names are a subset of the actual field names.
+            # Can omit the assertion because if the field doesn't exist getfield() will fail with "type $T has no field $field".
+        end
         quote
             # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type information in Julia 0.6
             $value isa $(esc(T)) &&
@@ -231,6 +264,7 @@ Patterns:
   * `_` matches anything
   * `foo` matches anything, binds value to `foo`
   * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
+  * `Foo(x=a,y=b,z=c)` matches structs of type `Foo` with fields named `x,y,z` matching `a,b,c`
   * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
   * `(x,y,z)` matches `Tuple`s with 3 entries matching `x,y,z`
   * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
