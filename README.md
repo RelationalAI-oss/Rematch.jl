@@ -1,5 +1,7 @@
 # Rematch
 
+[![Build Status](https://travis-ci.org/RelationalAI-oss/Rematch.jl.svg?branch=master)](https://travis-ci.org/RelationalAI-oss/Rematch.jl)
+
 Pattern matching.
 
 ``` julia
