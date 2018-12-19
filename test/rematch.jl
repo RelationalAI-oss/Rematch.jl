@@ -295,6 +295,41 @@ end
     @test_throws assertion_error @eval @match a + b = x
 end
 
+@testset "Interpolated Values" begin
+    # match against interpolated values
+    let outer = 2, b = nothing, c = nothing
+        @test (@match [1, $outer] = [1,2]) == [1,2]
+        @test (@match (1, $outer, b..., c) = (1,2,3,4,5)) == (1,2,3,4,5)
+        @test b == (3,4)
+        @test c == 5
+    end
+    test_interp_pattern = let a=1, b=2, c=3,
+                              arr=[10,20,30], tup=(100,200,300)
+        _t(x) = @match x begin
+            # scalars
+            [$a,$b,$c,out] => out
+            [fronts..., $a,$b,$c, back] => [fronts...,back]
+            # arrays & tuples
+            [fronts..., $arr, back] => [fronts...,back]
+            [fronts..., $tup, back] => [fronts...,back]
+            # complex expressions
+            [$(a+b+c), out] => out
+            # splatting existing values
+            [fronts..., $(arr...), back] => [fronts...,back]
+        end
+    end
+    # scalars
+    @test test_interp_pattern([1,2,3,4]) == 4
+    @test test_interp_pattern([4,3,2,1, 1,2,3, 4]) == [4,3,2,1,4]
+    # arrays & tuples
+    @test test_interp_pattern([0,1, [10,20,30], 2]) == [0,1,2]
+    @test test_interp_pattern([0,1, (100,200,300), 2]) == [0,1,2]
+    # complex expressions
+    @test test_interp_pattern([6,1]) == 1
+    # TODO: splatting existing values into pattern isn't suported yet.
+    @test_broken test_interp_pattern([0,1, 10,20,30, 2]) == [0,1,2]
+end
+
 # --- tests from Match.jl ---
 
 @testset "Tests imported from Match.jl" begin

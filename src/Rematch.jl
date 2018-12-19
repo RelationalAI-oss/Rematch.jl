@@ -72,6 +72,12 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         quote
             $value == $pattern
         end
+    elseif (pattern isa Expr && pattern.head == :$)
+        # interpolated value
+        # TODO Same as above: do we have to be careful about QuoteNode etc?
+        quote
+            $value == $(esc(pattern.args[1]))
+        end
     elseif @capture(pattern, subpattern_Symbol)
         # variable
         # if the pattern doesn't match, we don't want to set the variable
