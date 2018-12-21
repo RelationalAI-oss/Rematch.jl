@@ -68,13 +68,11 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
            @capture(pattern, _quote_macrocall) ||
            @capture(pattern, Symbol(_))
         # constant
-        # TODO do we have to be careful about QuoteNode etc?
         quote
             $value == $pattern
         end
     elseif (pattern isa Expr && pattern.head == :$)
         # interpolated value
-        # TODO Same as above: do we have to be careful about QuoteNode etc?
         quote
             $value == $(esc(pattern.args[1]))
         end
