@@ -110,6 +110,14 @@ end
     @test (@match v"1.2.0" begin
       v"1.2.0" => :ok
     end) == :ok
+
+    # QuoteNodes
+    @test (@match :(:x) begin
+      :(:x) => :ok
+    end) == :ok
+    @test (@match :(:x+:y) begin
+      :(:x + :y) => :ok
+    end) == :ok
 end
 
 @testset "logical expressions with branches" begin
