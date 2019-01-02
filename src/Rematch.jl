@@ -23,8 +23,8 @@ end
 Statically get the fieldcount of a type. Useful to avoid runtime calls to
 fieldcount.
 """
-# TODO(nathan.daly) Does this need to be @generated, or is this function necessary?
 @generated function evaluated_fieldcount(t::Type{T}) where T
+    # TODO(nathan.daly) Does this need to be @generated, or is this function even necessary?
     fieldcount(T)
 end
 
