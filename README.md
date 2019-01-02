@@ -4,6 +4,11 @@
 
 Pattern matching.
 
+`Rematch.jl` provides a syntax sugar for matching julia values against syntactic
+patterns. The `@match` macro expands a pattern-matching syntax into a series of
+if-elses that check the types and structure of the provided value, allowing you
+to more simply write checks that describe your intent.
+
 ``` julia
 julia> using Rematch
 
