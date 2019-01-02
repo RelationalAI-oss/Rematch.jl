@@ -262,7 +262,7 @@ macro match(value, cases)
     handle_match_cases(value, cases)
 end
 
-"""
+raw"""
 Patterns:
 
   * `_` matches anything
