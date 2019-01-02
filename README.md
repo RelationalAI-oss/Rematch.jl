@@ -68,7 +68,7 @@ Stacktrace:
 
 If value matches pattern, binds variables and returns `value`. Otherwise, throws `MatchFailure`.
 
-After evaluation, any variables defined within `pattern` will be bound as new variables in the enclosing scope. e.g.:
+After evaluation, any variable names used within `pattern` will be bound as new variables in the enclosing scope. For example:
 ```julia
 julia> @match Foo(x,2) = Foo(1,2)
 Foo(1,2)
@@ -106,7 +106,7 @@ Note that unlike the _assignment syntax_, this does not create any variable bind
 * `x && y` matches values which match both `x` and `y`
 * `x where condition` matches only if `condition` is true (`condition` may use any variables that occur earlier in the pattern eg `(x, y, z where x + y > z)`)
 * Anything else is treated as a constant and tested for equality
-* Expressions can be interpolated in as constants via standard interpolation syntax `$()`
+* Expressions can be interpolated in as constants via standard interpolation syntax `$(x)`
 
 Patterns can be nested arbitrarily.
 

@@ -262,7 +262,7 @@ macro match(value, cases)
     handle_match_cases(value, cases)
 end
 
-raw"""
+"""
 Patterns:
 
   * `_` matches anything
@@ -278,11 +278,11 @@ Patterns:
   * `x && y` matches values which match both `x` and `y`
   * `x where condition` matches only if `condition` is true (`condition` may use any variables that occur earlier in the pattern eg `(x, y, z where x + y > z)`)
   * Anything else is treated as a constant and tested for equality
-  * Expressions can be interpolated in as constants via standard interpolation syntax `$()`
+  * Expressions can be interpolated in as constants via standard interpolation syntax `\$(x)`
 
 Patterns can be nested arbitrarily.
 
-Repeated variables only match if they are `==` eg `(x,x)` matches `(1,1)` but not `(1,2)`.
+Repeated variables only match if they are equal (`==`). For example `(x,x)` matches `(1,1)` but not `(1,2)`.
 """
 :(@match)
 
