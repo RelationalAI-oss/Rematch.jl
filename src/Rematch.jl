@@ -129,7 +129,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         end
     elseif @capture(pattern, T_(subpatterns__))
         # struct
-        @assert occursin(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
+        @assert isa(DataType, typeof(T)) "Pattern $pattern used like a struct pattern but $T is probably not a struct type."
         len = length(subpatterns)
         named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
         named_count = length(named_fields)
