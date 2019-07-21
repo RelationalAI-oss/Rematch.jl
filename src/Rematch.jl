@@ -128,8 +128,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             end
         end
     elseif @capture(pattern, T_(subpatterns__))
-        # struct
-        @assert occursin(r"^[A-Z]", string(T)) "Pattern $pattern looks like a struct pattern but $T is probably not a struct type."
+        # struct      
         len = length(subpatterns)
         named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
         named_count = length(named_fields)
@@ -140,6 +139,12 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             expected_fieldcount = gensym("$(T)_expected_fieldcount")
             actual_fieldcount = gensym("$(T)_actual_fieldcount")
             push!(asserts, quote
+                if typeof($(esc(T))) <: Function
+                    throw(LoadError("Attempted to match on a function", @__LINE__, AssertionError("Incorrect match usage")))
+                end
+                if !(isstructtype(typeof($(esc(T)))) || issabstracttype(typeof($(esc(T)))))
+                    throw(LoadError("Attempted to match on a pattern that is not a struct", @__LINE__, AssertionError("Incorrect match usage")))
+                end
                 # This assertion is necessary:
                 # If $expected_fieldcount < $actual_fieldcount, to catch missing fields.
                 # If $expected_fieldcount > $actual_fieldcount, to avoid a BoundsError.
@@ -148,6 +153,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 if $expected_fieldcount != $actual_fieldcount
                     error("Pattern field count is $($actual_fieldcount) expected $($expected_fieldcount)")
                 end
+                 
             end)
         else
             # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
