@@ -128,42 +128,74 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             end
         end
     elseif @capture(pattern, T_(subpatterns__))
-        # struct      
-        len = length(subpatterns)
-        named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
-        named_count = length(named_fields)
-        @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments ($(named_fields))."
-        @assert named_count == 0 || named_count == len "Pattern $pattern mixes named and positional arguments."
-        if named_count == 0
-            # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
-            expected_fieldcount = gensym("$(T)_expected_fieldcount")
-            actual_fieldcount = gensym("$(T)_actual_fieldcount")
-            push!(asserts, quote
-                if typeof($(esc(T))) <: Function
-                    throw(LoadError("Attempted to match on a function", @__LINE__, AssertionError("Incorrect match usage")))
+        # struct or extractor call
+        # structs are uppercase, extractor calls are lowercase
+        if length(string(T)) > 0 && islowercase(first(string(T)))
+            result = gensym("unapply")
+            len = length(subpatterns)
+            # Extractor call.
+            # The function should take one argument and return either ``nothing`` if the argument does not match
+            # or a tuple if it does match.
+            # If there are no subpatterns, the function should return a boolean.
+            if len == 0
+                quote
+                    !isnothing($(esc(T))($value))
                 end
-                if !(isstructtype(typeof($(esc(T)))) || issabstracttype(typeof($(esc(T)))))
-                    throw(LoadError("Attempted to match on a pattern that is not a struct", @__LINE__, AssertionError("Incorrect match usage")))
+            elseif len == 1
+                quote
+                    begin
+                        $result = $(esc(T))($value)
+                        !isnothing($result) && $(handle_destruct(result, subpatterns[1], bound, asserts))
+                    end
                 end
-                # This assertion is necessary:
-                # If $expected_fieldcount < $actual_fieldcount, to catch missing fields.
-                # If $expected_fieldcount > $actual_fieldcount, to avoid a BoundsError.
-                $expected_fieldcount = evaluated_fieldcount($(esc(T)))
-                $actual_fieldcount = $(esc(len))
-                if $expected_fieldcount != $actual_fieldcount
-                    error("Pattern field count is $($actual_fieldcount) expected $($expected_fieldcount)")
+            else
+                quote
+                    begin
+                        $result = $(esc(T))($value)
+                        !isnothing($result) &&
+                        ($result isa Tuple) &&
+                        $(handle_destruct_fields(result, pattern, subpatterns, :(length($result)), :getindex, bound, asserts; allow_splat=false))
+                    end
                 end
-                 
-            end)
+            end
         else
-            # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
-            # Could assert that the expected field names are a subset of the actual field names.
-            # Can omit the assertion because if the field doesn't exist getfield() will fail with "type $T has no field $field".
-        end
-        quote
-            # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type information in Julia 0.6
-            $value isa $(esc(T)) &&
-            $(handle_destruct_fields(value, pattern, subpatterns, length(subpatterns), :getfield, bound, asserts; allow_splat=false))
+            # Struct.
+            len = length(subpatterns)
+            named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
+            named_count = length(named_fields)
+            @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments ($(named_fields))."
+            @assert named_count == 0 || named_count == len "Pattern $pattern mixes named and positional arguments."
+            if named_count == 0
+                # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
+                expected_fieldcount = gensym("$(T)_expected_fieldcount")
+                actual_fieldcount = gensym("$(T)_actual_fieldcount")
+                push!(asserts, quote
+                    if typeof($(esc(T))) <: Function
+                        throw(LoadError("Attempted to match on a function", @__LINE__, AssertionError("Incorrect match usage")))
+                    end
+                    if !(isstructtype(typeof($(esc(T)))) || issabstracttype(typeof($(esc(T)))))
+                        throw(LoadError("Attempted to match on a pattern that is not a struct", @__LINE__, AssertionError("Incorrect match usage")))
+                    end
+                    # This assertion is necessary:
+                    # If $expected_fieldcount < $actual_fieldcount, to catch missing fields.
+                    # If $expected_fieldcount > $actual_fieldcount, to avoid a BoundsError.
+                    $expected_fieldcount = evaluated_fieldcount($(esc(T)))
+                    $actual_fieldcount = $(esc(len))
+                    if $expected_fieldcount != $actual_fieldcount
+                        error("Pattern field count is $($actual_fieldcount) expected $($expected_fieldcount)")
+                    end
+
+                end)
+            else
+                # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
+                # Could assert that the expected field names are a subset of the actual field names.
+                # Can omit the assertion because if the field doesn't exist getfield() will fail with "type $T has no field $field".
+            end
+            quote
+                # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type information in Julia 0.6
+                $value isa $(esc(T)) &&
+                $(handle_destruct_fields(value, pattern, subpatterns, length(subpatterns), :getfield, bound, asserts; allow_splat=false))
+            end
         end
     elseif @capture(pattern, (subpatterns__,))
         # tuple
@@ -273,8 +305,9 @@ Patterns:
 
   * `_` matches anything
   * `foo` matches anything, binds value to `foo`
-  * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
-  * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`
+  * `foo(x,y,z)` calls the extractor function `foo(value)` which returns a tuple matching `(x,y,z)`; the function name must be lowercase
+  * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`; struct names must be uppercase
+  * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`; struct names must be uppercase
   * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
   * `(x,y,z)` matches `Tuple`s with 3 entries matching `x,y,z`
   * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
@@ -289,6 +322,43 @@ Patterns:
 Patterns can be nested arbitrarily.
 
 Repeated variables only match if they are equal (`==`). For example `(x,x)` matches `(1,1)` but not `(1,2)`.
+
+Extractors:
+
+An extractor function must take one argument--the value to be matched against--and should return either
+one value (for nullary and unary patterns), or a tuple of values (for 2+-ary patterns).
+Returning `nothing` indicates the extractor does not match.
+For example to destruct an array into its head and tail:
+
+    function cons(xs)
+        if isempty(xs)
+            nothing
+        else
+            ([xs[1], xs[2:end]])
+        end
+    end
+
+    @match [1,2,3] begin
+        cons(x, xs) => @assert x == 1 && xs == [2,3]
+    end
+
+Or here's one to extract the polar coordinates of a point:
+
+    function polar(p)
+        @match p begin
+            (x, y) =>
+                begin
+                    r = sqrt(x^2+y^2)
+                    theta = atan(y, x)
+                    (r, theta)
+                end
+            _ => nothing
+        end
+    end
+
+    @match (1,1) begin
+        polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
+    end
 """
 :(@match)
 

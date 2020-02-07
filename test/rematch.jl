@@ -47,6 +47,69 @@ assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
     end
 end
 
+@testset "Match using extractors" begin
+    function sub1(x) x+1 end
+
+    # sub1(4) == 3
+    let x = nothing
+        @test (@match 3 begin
+           sub1(x) => x 
+        end) == 4
+
+        @test x == nothing
+    end
+
+    function cons(xs)
+        if isempty(xs)
+            nothing
+        else
+            (xs[1], xs[2:end])
+        end
+    end
+
+    # cons(1, cons(2, (cons(3, []))) == [1,2,3]
+    let a = nothing
+        b = nothing
+        c = nothing
+
+        @test (@match [1,4,9] begin
+           cons(a, cons(b, cons(c, []))) => a + b + c
+        end) == 14
+
+        @test a == nothing
+        @test b == nothing
+        @test c == nothing
+    end
+
+     @match [1,2,3] begin
+         cons(x, xs) =>
+            begin
+                @test x == 1 
+                @test xs == [2,3]
+            end
+     end
+
+     function polar(p)
+         @match p begin
+             (x, y) =>
+                 begin
+                     r = sqrt(x^2+y^2)
+                     theta = atan(y, x)
+                     (r, theta)
+                 end
+             _ => nothing
+         end
+     end
+
+     @match (1,1) begin
+         polar(r, theta) => 
+            begin
+                @test r == sqrt(2)
+                @test theta == pi/4
+            end
+     end
+end
+
 @testset "Match Struct by field names" begin
     # match one struct field by name
     let x = nothing
