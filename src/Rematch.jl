@@ -130,7 +130,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
     elseif @capture(pattern, T_(subpatterns__))
         # struct or extractor call
         # structs are uppercase, extractor calls are lowercase
-        if length(string(T)) > 0 && islowercase(first(string(T)))
+        if !isempty(string(T)) && islowercase(first(string(T)))
             result = gensym("unapply")
             len = length(subpatterns)
             # Extractor call.
