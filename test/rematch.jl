@@ -53,7 +53,7 @@ end
     # sub1(4) == 3
     let x = nothing
         @test (@match 3 begin
-           sub1(x) => x 
+           sub1(x) => x
         end) == 4
 
         @test x == nothing
@@ -67,47 +67,168 @@ end
         end
     end
 
-    # cons(1, cons(2, (cons(3, []))) == [1,2,3]
+    # cons(1, cons(4, (cons(9, []))) == [1,4,9]
     let a = nothing
         b = nothing
         c = nothing
 
         @test (@match [1,4,9] begin
-           cons(a, cons(b, cons(c, []))) => a + b + c
-        end) == 14
+           cons(a, cons(b, cons(c, []))) => (a,b,c)
+        end) == (1,4,9)
 
         @test a == nothing
         @test b == nothing
         @test c == nothing
     end
 
-     @match [1,2,3] begin
-         cons(x, xs) =>
+    @match [1,2,3] begin
+        cons(x, xs) =>
             begin
-                @test x == 1 
+                @test x == 1
                 @test xs == [2,3]
             end
-     end
+    end
 
-     function polar(p)
-         @match p begin
-             (x, y) =>
-                 begin
-                     r = sqrt(x^2+y^2)
-                     theta = atan(y, x)
-                     (r, theta)
-                 end
-             _ => nothing
-         end
-     end
+    function snoc(xs)
+        if isempty(xs)
+            nothing
+        else
+            (xs[1:end-1], xs[end])
+        end
+    end
 
-     @match (1,1) begin
-         polar(r, theta) => 
+    let a = nothing
+        b = nothing
+        c = nothing
+
+        @test (@match [1,4,9] begin
+            snoc(snoc(snoc([], c), b), a) => (a,b,c)
+        end) == (9,4,1)
+
+        @test a == nothing
+        @test b == nothing
+        @test c == nothing
+    end
+
+    @match [1,2,3] begin
+        snoc(xs, x) =>
             begin
-                @test r == sqrt(2)
-                @test theta == pi/4
+                @test x == 3
+                @test xs == [1,2]
             end
-     end
+    end
+
+    function polar(p)
+        @match p begin
+            (x, y) =>
+                begin
+                    r = sqrt(x^2+y^2)
+                    theta = atan(y, x)
+                    (r, theta)
+                end
+            _ => nothing
+        end
+    end
+
+    @match (1,1) begin
+        polar(r, theta) =>
+           begin
+               @test r == sqrt(2)
+               @test theta == pi/4
+           end
+    end
+end
+
+@testset "Red-black trees" begin
+    # Okasaki-style red-black trees
+    @enum Color R B
+    abstract type Tree end
+    struct E <: Tree end
+    struct T <: Tree
+        color::Color
+        a::Tree
+        x
+        b::Tree
+    end
+
+    # Extractor for red nodes
+    function red(t::Tree)
+        @match t begin
+            # Use color == B since we can't match against an enum value R
+            T(color, a, x, b) where (color == R) => (a, x, b)
+            _ => nothing
+        end
+    end
+
+    # Extractor for black nodes
+    function blk(t::Tree)
+        @match t begin
+            # Use color == B since we can't match against an enum value B
+            T(color, a, x, b) where (color == B) => (a, x, b)
+            _ => nothing
+        end
+    end
+
+    # Constructors
+    function red(a, x, b) T(R, a, x, b) end
+    function blk(a, x, b) T(B, a, x, b) end
+
+    function member(x, t::Tree)
+        @match t begin
+            E() => false
+            T(_, a, y, b) where (x < y) => member(x, a)
+            T(_, a, y, b) where (x > y) => member(x, b)
+            _ => true
+        end
+    end
+
+    function insert(x, s::Tree)
+        function ins(t)
+            @match t begin
+                E() => red(E(), x, E())
+                T(color, a, y, b) where (x < y) => balance(T(color, ins(a), y, b))
+                T(color, a, y, b) where (x > y) => balance(T(color, a, y, ins(b)))
+                t => t
+            end
+        end
+
+        @match T(_, a, y, b) = ins(s)
+
+        blk(a, y, b)
+    end
+
+    function balance(t::T)
+        @match t begin
+            ( blk(red(red(a, x, b), y, c), z, d) ||
+              blk(red(a, x, red(b, y, c)), z, d) ||
+              blk(a, x, red(red(b, y, c), z, d)) ||
+              blk(a, x, red(b, y, red(c, z, d))) ) => red(blk(a, x, b), y, blk(c, z, d))
+            t => t
+        end
+    end
+
+    function height(t::Tree)
+        @match t begin
+            E() => 0
+            T(_, a, x, b) => max(height(a), height(b)) + 1
+        end
+    end
+
+    @test member(3, insert(3, E()))
+
+    n = 1
+
+    t = E()
+    for x in 1:n
+        t = insert(x, t)
+    end
+
+    theoretical_max_height = 2 * floor(log(2, n+1))
+    @test height(t) <= theoretical_max_height
+
+    for x in 1:n
+        @test member(x, t)
+    end
 end
 
 @testset "Match Struct by field names" begin
