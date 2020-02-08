@@ -134,14 +134,15 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             result = gensym("unapply")
             len = length(subpatterns)
             # Extractor call.
-            # The function should take one argument and return either ``nothing`` if the argument does not match
+            # The function should take one argument and return either `nothing`, if the argument does not match,
             # or a tuple if it does match.
-            # If there are no subpatterns, the function should return a boolean.
             if len == 0
+                # If there are no subpatterns, the result value is just checked for nothingness.
                 quote
                     !isnothing($(esc(T))($value))
                 end
             elseif len == 1
+                # If there is one subpattern, the result value is just matched against it.
                 quote
                     begin
                         $result = $(esc(T))($value)
@@ -149,12 +150,13 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                     end
                 end
             else
+                # If there is more than one subpattern, the result value is matched against a tuple pattern.
                 quote
                     begin
                         $result = $(esc(T))($value)
                         !isnothing($result) &&
                         ($result isa Tuple) &&
-                        $(handle_destruct_fields(result, pattern, subpatterns, :(length($result)), :getindex, bound, asserts; allow_splat=false))
+                        $(handle_destruct_fields(result, pattern, subpatterns, :(length($result)), :getindex, bound, asserts; allow_splat=true))
                     end
                 end
             end
