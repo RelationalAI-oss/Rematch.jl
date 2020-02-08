@@ -216,7 +216,7 @@ end
 
     @test member(3, insert(3, E()))
 
-    n = 1
+    n = 100
 
     t = E()
     for x in 1:n
