@@ -127,15 +127,15 @@ For example to destruct an array into its head and tail:
 
 ```julia
 function cons(xs)
-	if isempty(xs)
-		nothing
-	else
-		([xs[1], xs[2:end]])
-	end
+    if isempty(xs)
+        nothing
+    else
+        ([xs[1], xs[2:end]])
+    end
 end
 
 @match [1,2,3] begin
-	cons(x, xs) => @assert x == 1 && xs == [2,3]
+    cons(x, xs) => @assert x == 1 && xs == [2,3]
 end
 ```
 
@@ -143,19 +143,19 @@ Or, here's one that extracts the polar coordinates of a cartesian point:
 
 ```julia
 function polar(p)
-	@match p begin
-		(x, y) =>
-			begin
-				r = sqrt(x^2+y^2)
-				theta = atan(y, x)
-				(r, theta)
-			end
-		_ => nothing
-	end
+    @match p begin
+        (x, y) =>
+            begin
+                r = sqrt(x^2+y^2)
+                theta = atan(y, x)
+                (r, theta)
+            end
+        _ => nothing
+    end
 end
 
 @match (1,1) begin
-	polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
+    polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
 end
 ```
 
