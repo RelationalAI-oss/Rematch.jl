@@ -129,8 +129,8 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         end
     elseif @capture(pattern, T_(subpatterns__))
         # struct or extractor call
-        # structs are uppercase, extractor calls are lowercase
         if !isempty(string(T)) && islowercase(first(string(T)))
+            # Extractor call.
             result = gensym("unapply")
             len = length(subpatterns)
             # Extractor call.
@@ -142,7 +142,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                     !isnothing($(esc(T))($value))
                 end
             elseif len == 1
-                # If there is one subpattern, the result value is just matched against it.
+                # If there is just one subpattern, the result value is matched against it.
                 quote
                     begin
                         $result = $(esc(T))($value)
