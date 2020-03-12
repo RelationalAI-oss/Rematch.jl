@@ -139,14 +139,14 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             if len == 0
                 # If there are no subpatterns, the result value is just checked for nothingness.
                 quote
-                    !isnothing($(esc(T))($value))
+                    $(esc(T))($value) !== nothing
                 end
             elseif len == 1
                 # If there is just one subpattern, the result value is matched against it.
                 quote
                     begin
                         $result = $(esc(T))($value)
-                        !isnothing($result) && $(handle_destruct(result, subpatterns[1], bound, asserts))
+                        $result !== nothing && $(handle_destruct(result, subpatterns[1], bound, asserts))
                     end
                 end
             else
@@ -154,7 +154,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 quote
                     begin
                         $result = $(esc(T))($value)
-                        !isnothing($result) &&
+                        $result !== nothing &&
                         ($result isa Tuple) &&
                         $(handle_destruct_fields(result, pattern, subpatterns, :(length($result)), :getindex, bound, asserts; allow_splat=true))
                     end
