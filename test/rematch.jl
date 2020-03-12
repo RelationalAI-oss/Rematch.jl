@@ -142,9 +142,9 @@ end
 @testset "Red-black trees" begin
     # Okasaki-style red-black trees
     @enum Color R B
-    abstract type Tree end
-    struct E <: Tree end
-    struct T <: Tree
+    @eval abstract type Tree end
+    @eval struct E <: Tree end
+    @eval struct T <: Tree
         color::Color
         a::Tree
         x
