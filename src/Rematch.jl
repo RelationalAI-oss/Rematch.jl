@@ -28,6 +28,17 @@ fieldcount.
     fieldcount(T)
 end
 
+"""
+    handle_destruct_fields(value, pattern, subpatterns, len, get, bound, asserts; allow_splat=true)
+
+Destruct a tuple, vector, or struct `value` with the given `pattern`.
+Returns a boolean expression that evaluates to true if the pattern matches.
+Variables bound in the pattern are added to the `bound` set.
+Assertions are added to the `asserts` vector.
+
+The value is indexed by `get` from 1 to `len` and element i is matched against `subpattern` i.
+If `allow_splat` is true, one `...` is allowed among the subpatterns.
+"""
 function handle_destruct_fields(
     value::Symbol,
     pattern,
@@ -41,6 +52,7 @@ function handle_destruct_fields(
     # NOTE we assume `len` is cheap
     fields = []
     seen_splat = false
+
     for (i,subpattern) in enumerate(subpatterns)
         if (subpattern isa Expr) && (subpattern.head == :(...))
             @assert allow_splat && !seen_splat "Too many ... in pattern $pattern"
@@ -56,7 +68,8 @@ function handle_destruct_fields(
             push!(fields, (i, subpattern))
         end
     end
-    Expr(:&&,
+
+    return Expr(:&&,
         if seen_splat
             :($len >= $(length(subpatterns)-1))
         else
@@ -68,37 +81,48 @@ function handle_destruct_fields(
         end)
 end
 
+"""
+handle_destruct(value, pattern, bound, asserts)
+
+Destruct `value` with the given `pattern`.
+
+The pattern is compiled to a boolean expression which evaluates to `true` if the
+pattern matches. Variables bound in the pattern are added to the `bound` set.
+Assertions are added to the `asserts` vector.
+"""
 function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Vector{Expr})
     if pattern == :(_)
         # wildcard
-        true
+        return true
     elseif !(pattern isa Expr || pattern isa Symbol) ||
            pattern == :nothing ||
            @capture(pattern, _quote_macrocall) ||
            @capture(pattern, Symbol(_))
         # constant
-        quote
+        return quote
             $value == $pattern
         end
     elseif (pattern isa Expr && pattern.head == :$)
         # interpolated value
-        quote
+        return quote
             $value == $(esc(pattern.args[1]))
         end
     elseif @capture(pattern, subpattern_Symbol)
         # variable
+
         # if the pattern doesn't match, we don't want to set the variable
         # so for now just set a temp variable
         our_sym = Symbol("variable_$pattern")
+
         if pattern in bound
             # already bound, check that this value matches
-            quote
+            return quote
                 $our_sym == $value
             end
         else
             # bind
             push!(bound, pattern)
-            quote
+            return quote
                 $our_sym = $value;
                 true
             end
@@ -106,29 +130,36 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
     elseif @capture(pattern, subpattern1_ || subpattern2_) ||
           (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :|)
         # disjunction
+
         # need to only bind variables which exist in both branches
         bound1 = copy(bound)
         bound2 = copy(bound)
+
         body1 = handle_destruct(value, subpattern1, bound1, asserts)
         body2 = handle_destruct(value, subpattern2, bound2, asserts)
         union!(bound, intersect(bound1, bound2))
-        quote
+
+        return quote
             $body1 || $body2
         end
     elseif @capture(pattern, subpattern1_ && subpattern2_) ||
           (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :&)
         # conjunction
+
         body1 = handle_destruct(value, subpattern1, bound, asserts)
         body2 = handle_destruct(value, subpattern2, bound, asserts)
-        quote
+
+        return quote
             $body1 && $body2
         end
     elseif @capture(pattern, _where)
         # guard
         @assert length(pattern.args) == 2
+
         subpattern = pattern.args[1]
         guard = pattern.args[2]
-        quote
+
+        return quote
             $(handle_destruct(value, subpattern, bound, asserts)) &&
             let $(bound...)
                 # bind variables locally so they can be used in the guard
@@ -142,20 +173,21 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         # struct or extractor call
         if !isempty(string(T)) && islowercase(first(string(T)))
             # Extractor call.
+
             result = gensym("unapply")
             len = length(subpatterns)
-            # Extractor call.
+
             # The function should take one argument and return either `nothing`, if the
             # argument does not match, or a tuple if it does match.
             if len == 0
                 # If there are no subpatterns, the result value is just checked for
                 # nothingness.
-                quote
+                return quote
                     $(esc(T))($value) !== nothing
                 end
             elseif len == 1
                 # If there is just one subpattern, the result value is matched against it.
-                quote
+                return quote
                     begin
                         $result = $(esc(T))($value)
                         $result !== nothing &&
@@ -165,7 +197,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             else
                 # If there is more than one subpattern, the result value is matched
                 # against a tuple pattern.
-                quote
+                return quote
                     begin
                         $result = $(esc(T))($value)
                         $result !== nothing &&
@@ -186,13 +218,16 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         else
             # Struct.
             len = length(subpatterns)
+
             named_fields = [pat.args[1] for pat in subpatterns
                                         if (pat isa Expr) && pat.head == :kw]
             named_count = length(named_fields)
+
             @assert named_count == length(unique(named_fields))
                 "Pattern $pattern has duplicate named arguments ($(named_fields))."
             @assert named_count == 0 || named_count == len
                 "Pattern $pattern mixes named and positional arguments."
+
             if named_count == 0
                 # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
                 expected_fieldcount = gensym("$(T)_expected_fieldcount")
@@ -224,7 +259,8 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 # field names. Can omit the assertion because if the field doesn't exist
                 # getfield() will fail with "type $T has no field $field".
             end
-            quote
+
+            return quote
                 # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type
                 # information in Julia 0.6
                 $value isa $(esc(T)) &&
@@ -242,7 +278,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         end
     elseif @capture(pattern, (subpatterns__,))
         # tuple
-        quote
+        return quote
             ($value isa Tuple) &&
             $(handle_destruct_fields(
                 value,
@@ -257,7 +293,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         end
     elseif @capture(pattern, [subpatterns__])
         # array
-        quote
+        return quote
             ($value isa AbstractArray) &&
             $(handle_destruct_fields(
                 value,
@@ -272,7 +308,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         end
     elseif @capture(pattern, subpattern_::T_)
         # typeassert
-        quote
+        return quote
             ($value isa $(esc(T))) &&
             $(handle_destruct(value, subpattern, bound, asserts))
         end
@@ -286,7 +322,7 @@ function handle_match_eq(expr)
         asserts = Expr[]
         bound = Set{Symbol}()
         body = handle_destruct(:value, pattern, bound, asserts)
-        quote
+        return quote
             $(asserts...)
             value = $(esc(value))
             $body || throw(MatchFailure(value))
@@ -304,7 +340,8 @@ function handle_match_case(value, case, tail, asserts)
     if @capture(case, pattern_ => result_)
         bound = Set{Symbol}()
         body = handle_destruct(:value, pattern, bound, asserts)
-        quote
+
+        return quote
             if $body
                 let $(bound...)
                     # export bindings
@@ -326,10 +363,12 @@ function handle_match_cases(value, match)
     tail = :(throw(MatchFailure(value)))
     if @capture(match, begin cases__ end)
         asserts = Expr[]
+
         for case in reverse(cases)
             tail = handle_match_case(:value, case, tail, asserts)
         end
-        quote
+
+        return quote
             $(asserts...)
             value = $(esc(value))
             $tail
