@@ -60,11 +60,7 @@ end
     end
 
     function cons(xs)
-        if isempty(xs)
-            nothing
-        else
-            (xs[1], xs[2:end])
-        end
+        isempty(xs) ? nothing : (xs[1], xs[2:end])
     end
 
     # cons(1, cons(4, (cons(9, []))) == [1,4,9]
@@ -90,11 +86,7 @@ end
     end
 
     function snoc(xs)
-        if isempty(xs)
-            nothing
-        else
-            (xs[1:end-1], xs[end])
-        end
+        isempty(xs) ? nothing : (xs[1:end-1], xs[end])
     end
 
     let a = nothing
@@ -124,9 +116,9 @@ end
                 begin
                     r = sqrt(x^2+y^2)
                     theta = atan(y, x)
-                    (r, theta)
+                    return (r, theta)
                 end
-            _ => nothing
+            _ => return nothing
         end
     end
 

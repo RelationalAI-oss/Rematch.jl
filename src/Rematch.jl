@@ -28,7 +28,16 @@ fieldcount.
     fieldcount(T)
 end
 
-function handle_destruct_fields(value::Symbol, pattern, subpatterns, len, get::Symbol, bound::Set{Symbol}, asserts::Vector{Expr}; allow_splat=true)
+function handle_destruct_fields(
+    value::Symbol,
+    pattern,
+    subpatterns,
+    len,
+    get::Symbol,
+    bound::Set{Symbol},
+    asserts::Vector{Expr};
+    allow_splat=true
+)
     # NOTE we assume `len` is cheap
     fields = []
     seen_splat = false
@@ -94,7 +103,8 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 true
             end
         end
-    elseif @capture(pattern, subpattern1_ || subpattern2_) || (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :|)
+    elseif @capture(pattern, subpattern1_ || subpattern2_) ||
+          (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :|)
         # disjunction
         # need to only bind variables which exist in both branches
         bound1 = copy(bound)
@@ -105,7 +115,8 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
         quote
             $body1 || $body2
         end
-    elseif @capture(pattern, subpattern1_ && subpattern2_) || (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :&)
+    elseif @capture(pattern, subpattern1_ && subpattern2_) ||
+          (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :&)
         # conjunction
         body1 = handle_destruct(value, subpattern1, bound, asserts)
         body2 = handle_destruct(value, subpattern2, bound, asserts)
@@ -134,10 +145,11 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             result = gensym("unapply")
             len = length(subpatterns)
             # Extractor call.
-            # The function should take one argument and return either `nothing`, if the argument does not match,
-            # or a tuple if it does match.
+            # The function should take one argument and return either `nothing`, if the
+            # argument does not match, or a tuple if it does match.
             if len == 0
-                # If there are no subpatterns, the result value is just checked for nothingness.
+                # If there are no subpatterns, the result value is just checked for
+                # nothingness.
                 quote
                     $(esc(T))($value) !== nothing
                 end
@@ -146,70 +158,117 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
                 quote
                     begin
                         $result = $(esc(T))($value)
-                        $result !== nothing && $(handle_destruct(result, subpatterns[1], bound, asserts))
+                        $result !== nothing &&
+                        $(handle_destruct(result, subpatterns[1], bound, asserts))
                     end
                 end
             else
-                # If there is more than one subpattern, the result value is matched against a tuple pattern.
+                # If there is more than one subpattern, the result value is matched
+                # against a tuple pattern.
                 quote
                     begin
                         $result = $(esc(T))($value)
                         $result !== nothing &&
                         ($result isa Tuple) &&
-                        $(handle_destruct_fields(result, pattern, subpatterns, :(length($result)), :getindex, bound, asserts; allow_splat=true))
+                        $(handle_destruct_fields(
+                            result,
+                            pattern,
+                            subpatterns,
+                            :(length($result)),
+                            :getindex,
+                            bound,
+                            asserts;
+                            allow_splat=true
+                        ))
                     end
                 end
             end
         else
             # Struct.
             len = length(subpatterns)
-            named_fields = [pat.args[1] for pat in subpatterns if (pat isa Expr) && pat.head == :kw]
+            named_fields = [pat.args[1] for pat in subpatterns
+                                        if (pat isa Expr) && pat.head == :kw]
             named_count = length(named_fields)
-            @assert named_count == length(unique(named_fields)) "Pattern $pattern has duplicate named arguments ($(named_fields))."
-            @assert named_count == 0 || named_count == len "Pattern $pattern mixes named and positional arguments."
+            @assert named_count == length(unique(named_fields))
+                "Pattern $pattern has duplicate named arguments ($(named_fields))."
+            @assert named_count == 0 || named_count == len
+                "Pattern $pattern mixes named and positional arguments."
             if named_count == 0
                 # Pattern uses positional arguments to refer to fields e.g. Foo(0, true)
                 expected_fieldcount = gensym("$(T)_expected_fieldcount")
                 actual_fieldcount = gensym("$(T)_actual_fieldcount")
                 push!(asserts, quote
-                    if typeof($(esc(T))) <: Function
-                        throw(LoadError("Attempted to match on a function", @__LINE__, AssertionError("Incorrect match usage")))
+                    t =  $(esc(T))
+                    if typeof(t) <: Function
+                        throw(LoadError("Attempted to match on a function",
+                                        @__LINE__, AssertionError("Incorrect match usage")))
                     end
-                    if !(isstructtype(typeof($(esc(T)))) || issabstracttype(typeof($(esc(T)))))
-                        throw(LoadError("Attempted to match on a pattern that is not a struct", @__LINE__, AssertionError("Incorrect match usage")))
+                    if !(isstructtype(typeof(t)) || issabstracttype(typeof(t)))
+                        throw(LoadError("Attempted to match on a type that is not a struct",
+                                        @__LINE__, AssertionError("Incorrect match usage")))
                     end
                     # This assertion is necessary:
                     # If $expected_fieldcount < $actual_fieldcount, to catch missing fields.
                     # If $expected_fieldcount > $actual_fieldcount, to avoid a BoundsError.
-                    $expected_fieldcount = evaluated_fieldcount($(esc(T)))
+                    $expected_fieldcount = evaluated_fieldcount(t)
                     $actual_fieldcount = $(esc(len))
                     if $expected_fieldcount != $actual_fieldcount
-                        error("Pattern field count is $($actual_fieldcount) expected $($expected_fieldcount)")
+                        error("Pattern field count is $($actual_fieldcount), ",
+                              "expected $($expected_fieldcount)")
                     end
 
                 end)
             else
                 # Pattern uses named arguments to refer to fields e.g. Foo(x=0, y=true)
-                # Could assert that the expected field names are a subset of the actual field names.
-                # Can omit the assertion because if the field doesn't exist getfield() will fail with "type $T has no field $field".
+                # Could assert that the expected field names are a subset of the actual
+                # field names. Can omit the assertion because if the field doesn't exist
+                # getfield() will fail with "type $T has no field $field".
             end
             quote
-                # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type information in Julia 0.6
+                # I would prefer typeof($value) == $(esc(T)) but this doesn't convey type
+                # information in Julia 0.6
                 $value isa $(esc(T)) &&
-                $(handle_destruct_fields(value, pattern, subpatterns, length(subpatterns), :getfield, bound, asserts; allow_splat=false))
+                $(handle_destruct_fields(
+                    value,
+                    pattern,
+                    subpatterns,
+                    length(subpatterns),
+                    :getfield,
+                    bound,
+                    asserts;
+                    allow_splat=false
+                ))
             end
         end
     elseif @capture(pattern, (subpatterns__,))
         # tuple
         quote
             ($value isa Tuple) &&
-            $(handle_destruct_fields(value, pattern, subpatterns, :(length($value)), :getindex, bound, asserts; allow_splat=true))
+            $(handle_destruct_fields(
+                value,
+                pattern,
+                subpatterns,
+                :(length($value)),
+                :getindex,
+                bound,
+                asserts;
+                allow_splat=true
+            ))
         end
     elseif @capture(pattern, [subpatterns__])
         # array
         quote
             ($value isa AbstractArray) &&
-            $(handle_destruct_fields(value, pattern, subpatterns, :(length($value)), :getindex, bound, asserts; allow_splat=true))
+            $(handle_destruct_fields(
+                value,
+                pattern,
+                subpatterns,
+                :(length($value)),
+                :getindex,
+                bound,
+                asserts;
+                allow_splat=true
+            ))
         end
     elseif @capture(pattern, subpattern_::T_)
         # typeassert
@@ -283,7 +342,8 @@ end
 """
     @match pattern = value
 
-If `value` matches `pattern`, bind variables and return `value`. Otherwise, throw `MatchFailure`.
+If `value` matches `pattern`, bind variables and return `value`.
+Otherwise, throw `MatchFailure`.
 """
 macro match(expr)
     handle_match_eq(expr)
@@ -296,7 +356,8 @@ end
         ...
     end
 
-Return `result` for the first matching `pattern`. If there are no matches, throw `MatchFailure`.
+Return `result` for the first matching `pattern`.
+If there are no matches, throw `MatchFailure`.
 """
 macro match(value, cases)
     handle_match_cases(value, cases)
@@ -307,29 +368,38 @@ Patterns:
 
   * `_` matches anything
   * `foo` matches anything, binds value to `foo`
-  * `foo(x,y,z)` calls the extractor function `foo(value)` which returns a tuple matching `(x,y,z)`; the function name must be lowercase
-  * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`; struct names must be uppercase
-  * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`; struct names must be uppercase
+  * `foo(x,y,z)` calls the extractor function `foo(value)` which returns a tuple
+    matching `(x,y,z)`; the function name must be lowercase
+  * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`;
+    struct names must be uppercase
+  * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`;
+    struct names must be uppercase
   * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
   * `(x,y,z)` matches `Tuple`s with 3 entries matching `x,y,z`
-  * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
-  * `(x,y...,z)` matches `Tuple`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
+  * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches
+    the first entry, `z` matches the last entry and `y` matches the remaining entries.
+  * `(x,y...,z)` matches `Tuple`s with at least 2 entries, where `x` matches the first
+    entry, `z` matches the last entry and `y` matches the remaining entries.
   * `_::T` matches any subtype (`isa`) of T
-  * `x || y` matches values which match either `x` or `y` (only variables which exist in both branches will be bound)
+  * `x || y` matches values which match either `x` or `y` (only variables which exist in
+    both branches will be bound)
   * `x && y` matches values which match both `x` and `y`
-  * `x where condition` matches only if `condition` is true (`condition` may use any variables that occur earlier in the pattern eg `(x, y, z where x + y > z)`)
+  * `x where condition` matches only if `condition` is true (`condition` may use any
+    variables that occur earlier in the pattern eg `(x, y, z where x + y > z)`)
   * Anything else is treated as a constant and tested for equality
-  * Expressions can be interpolated in as constants via standard interpolation syntax `\$(x)`
+  * Expressions can be interpolated in as constants via standard interpolation
+    syntax `\$(x)`
 
 Patterns can be nested arbitrarily.
 
-Repeated variables only match if they are equal (`==`). For example `(x,x)` matches `(1,1)` but not `(1,2)`.
+Repeated variables only match if they are equal (`==`).
+For example `(x,x)` matches `(1,1)` but not `(1,2)`.
 
 Extractors:
 
-An extractor function must take one argument--the value to be matched against--and should return either
-one value (for nullary and unary patterns), or a tuple of values (for 2+-ary patterns).
-Returning `nothing` indicates the extractor does not match.
+An extractor function must take one argument--the value to be matched against--and should
+return either one value (for nullary and unary patterns), or a tuple of values (for 2+-ary
+patterns). Returning `nothing` indicates the extractor does not match.
 For example to destruct an array into its head and tail:
 
     function cons(xs)
