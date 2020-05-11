@@ -95,9 +95,9 @@ Note that unlike the _assignment syntax_, this does not create any variable bind
 
 * `_` matches anything
 * `foo` matches anything, binds value to `foo`
-* `foo(x,y,z)` calls the extractor function `foo(value)` which returns a tuple matching `(x,y,z)`; the function name must be lowercase
-* `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`; struct names must be uppercase
-* `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`; struct names must be uppercase
+* `~Foo(x,y,z)` calls the extractor function `Foo(value)` which returns a tuple matching `(x,y,z)`
+* `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
+* `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`
 * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
 * `(x,y,z)` matches `Tuple`s with 3 entries matching `x,y,z`
 * `[x,y...,z]` matches `AbstractArray`s with at least 2 entries, where `x` matches the first entry, `z` matches the last entry and `y` matches the remaining entries.
@@ -118,7 +118,6 @@ Repeated variables only match if they are equal (`==`). For example `(x,x)` matc
 Patterns can use _extractor functions_ (also known as _active patterns_).
 These are just any function that takes a value to match and returns either `nothing` (indicating match failure)
 or a tuple that decomposes the value. The tuple is then matched against other patterns.
-An extractor function must have a lowercase name to distinguish it from a struct name.
 
 An extractor function must take one argument--the value to be matched against--and should return either
 one value (for nullary and unary patterns), or a tuple of values (for 2+-ary patterns).
@@ -126,36 +125,36 @@ Returning `nothing` indicates the extractor does not match.
 For example to destruct an array into its head and tail:
 
 ```julia
-function cons(xs)
+function Cons(xs)
     if isempty(xs)
-        nothing
+        return nothing
     else
-        ([xs[1], xs[2:end]])
+        return ([xs[1], xs[2:end]])
     end
 end
 
 @match [1,2,3] begin
-    cons(x, xs) => @assert x == 1 && xs == [2,3]
+    ~Cons(x, xs) => @assert x == 1 && xs == [2,3]
 end
 ```
 
 Or, here's one that extracts the polar coordinates of a cartesian point:
 
 ```julia
-function polar(p)
+function Polar(p)
     @match p begin
         (x, y) =>
             begin
                 r = sqrt(x^2+y^2)
                 theta = atan(y, x)
-                (r, theta)
+                return (r, theta)
             end
-        _ => nothing
+        _ => return nothing
     end
 end
 
 @match (1,1) begin
-    polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
+    ~Polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
 end
 ```
 

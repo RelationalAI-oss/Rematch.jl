@@ -18,32 +18,34 @@ assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
         y
     end
 
-    # test basic match
-    let x = nothing
-        @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
-        @test x == 1
-    end
-
-    # variables not bound if match fails
-    let x = nothing
-        @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
-        @test x == nothing
-    end
-
-    # doesn't overwrite variables in outer scope
-    let x = nothing
-        @test (@match Foo(1,2) begin
-            Foo(x,2) => x
-        end) == 1
-        @test x == nothing
-    end
-
-    # variables not bound if guard fails
-    let x = nothing
-        @test_throws MatchFailure @match Foo(1,2) begin
-          Foo(x, 2) where x != 1 => :ok
+    @eval begin
+        # test basic match
+        let x = nothing
+            @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
+            @test x == 1
         end
-        @test x == nothing
+
+        # variables not bound if match fails
+        let x = nothing
+            @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
+            @test x == nothing
+        end
+
+        # doesn't overwrite variables in outer scope
+        let x = nothing
+            @test (@match Foo(1,2) begin
+                Foo(x,2) => x
+            end) == 1
+            @test x == nothing
+        end
+
+        # variables not bound if guard fails
+        let x = nothing
+            @test_throws MatchFailure @match Foo(1,2) begin
+              Foo(x, 2) where x != 1 => :ok
+            end
+            @test x == nothing
+        end
     end
 end
 
@@ -53,7 +55,7 @@ end
     # sub1(4) == 3
     let x = nothing
         @test (@match 3 begin
-           sub1(x) => x
+           ~sub1(x) => x
         end) == 4
 
         @test x == nothing
@@ -63,13 +65,13 @@ end
         isempty(xs) ? nothing : (xs[1], xs[2:end])
     end
 
-    # cons(1, cons(4, (cons(9, []))) == [1,4,9]
+    # ~cons(1, ~cons(4, (~cons(9, []))) == [1,4,9]
     let a = nothing
         b = nothing
         c = nothing
 
         @test (@match [1,4,9] begin
-           cons(a, cons(b, cons(c, []))) => (a,b,c)
+           ~cons(a, ~cons(b, ~cons(c, []))) => (a,b,c)
         end) == (1,4,9)
 
         @test a == nothing
@@ -78,14 +80,14 @@ end
     end
 
     @match [1,2,3] begin
-        cons(x, xs) =>
+        ~cons(x, xs) =>
             begin
                 @test x == 1
                 @test xs == [2,3]
             end
     end
 
-    function snoc(xs)
+    function Snoc(xs)
         isempty(xs) ? nothing : (xs[1:end-1], xs[end])
     end
 
@@ -94,7 +96,7 @@ end
         c = nothing
 
         @test (@match [1,4,9] begin
-            snoc(snoc(snoc([], c), b), a) => (a,b,c)
+            ~Snoc(~Snoc(~Snoc([], c), b), a) => (a,b,c)
         end) == (9,4,1)
 
         @test a == nothing
@@ -103,14 +105,14 @@ end
     end
 
     @match [1,2,3] begin
-        snoc(xs, x) =>
+        ~Snoc(xs, x) =>
             begin
                 @test x == 3
                 @test xs == [1,2]
             end
     end
 
-    function polar(p)
+    function Polar(p)
         @match p begin
             (x, y) =>
                 begin
@@ -123,15 +125,53 @@ end
     end
 
     @match (1,1) begin
-        polar(r, theta) =>
+        ~Polar(r, theta) =>
            begin
                @test r == sqrt(2)
                @test theta == pi/4
            end
     end
+
+    # A more complex extractor.
+    function Re(r::Regex)
+        x -> begin
+            m = match(r, x)
+            if m == nothing
+                return nothing
+            else
+                if length(m.captures) == 0
+                    return true
+                elseif length(m.captures) == 1
+                    return m.captures[1]
+                else
+                    return tuple(m.captures...)
+                end
+            end
+        end
+    end
+
+    @match "abc123def" begin
+        ~Re(r"(\w+?)(\d+)(\w+)")(a,x,d) =>
+            begin
+                @test a == "abc"
+                @test x == "123"
+                @test d == "def"
+            end
+        _ => @test false
+    end
+
+    @match "abc123def" begin
+        ~Re(r"(\d+)")(x) => @test x == "123"
+        _ => @test false
+    end
+
+    @match "abc123def" begin
+        ~Re(r"\d+")() => @test true
+        _ => @test false
+    end
 end
 
-@testset "Red-black trees" begin
+@testset "Red-black trees with extractors" begin
     # Okasaki-style red-black trees
     @enum Color R B
     @eval abstract type Tree end
@@ -144,7 +184,7 @@ end
     end
 
     # Extractor for red nodes
-    function red(t::Tree)
+    function Red(t::Tree)
         @match t begin
             # Use color == B since we can't match against an enum value R
             T(color, a, x, b) where (color == R) => (a, x, b)
@@ -153,7 +193,7 @@ end
     end
 
     # Extractor for black nodes
-    function blk(t::Tree)
+    function Blk(t::Tree)
         @match t begin
             # Use color == B since we can't match against an enum value B
             T(color, a, x, b) where (color == B) => (a, x, b)
@@ -162,8 +202,8 @@ end
     end
 
     # Constructors
-    function red(a, x, b) T(R, a, x, b) end
-    function blk(a, x, b) T(B, a, x, b) end
+    function Red(a, x, b) T(R, a, x, b) end
+    function Blk(a, x, b) T(B, a, x, b) end
 
     function member(x, t::Tree)
         @match t begin
@@ -177,7 +217,7 @@ end
     function insert(x, s::Tree)
         function ins(t)
             @match t begin
-                E() => red(E(), x, E())
+                E() => Red(E(), x, E())
                 T(color, a, y, b) where (x < y) => balance(T(color, ins(a), y, b))
                 T(color, a, y, b) where (x > y) => balance(T(color, a, y, ins(b)))
                 t => t
@@ -186,15 +226,15 @@ end
 
         @match T(_, a, y, b) = ins(s)
 
-        blk(a, y, b)
+        Blk(a, y, b)
     end
 
     function balance(t::T)
         @match t begin
-            ( blk(red(red(a, x, b), y, c), z, d) ||
-              blk(red(a, x, red(b, y, c)), z, d) ||
-              blk(a, x, red(red(b, y, c), z, d)) ||
-              blk(a, x, red(b, y, red(c, z, d))) ) => red(blk(a, x, b), y, blk(c, z, d))
+            ( ~Blk(~Red(~Red(a, x, b), y, c), z, d) ||
+              ~Blk(~Red(a, x, ~Red(b, y, c)), z, d) ||
+              ~Blk(a, x, ~Red(~Red(b, y, c), z, d)) ||
+              ~Blk(a, x, ~Red(b, y, ~Red(c, z, d))) ) => Red(Blk(a, x, b), y, Blk(c, z, d))
             t => t
         end
     end
