@@ -250,7 +250,7 @@ function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Ve
             expected_fieldcount = gensym("$(T)_expected_fieldcount")
             actual_fieldcount = gensym("$(T)_actual_fieldcount")
             push!(asserts, quote
-                t =  $(esc(T))
+                t = $(esc(T))
                 if typeof(t) <: Function
                     throw(LoadError("Attempted to match on a function",
                                     @__LINE__, AssertionError("Incorrect match usage")))
@@ -423,7 +423,7 @@ Patterns:
 
   * `_` matches anything
   * `foo` matches anything, binds value to `foo`
-  * `~Foo(x,y,z)` calls the extractor function `Foo(value)` which returns a tuple
+  * `~Foo(x,y,z)` calls the extractor function `unapply_Foo(value)` which returns a tuple
     matching `(x,y,z)`
   * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
   * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`
@@ -451,11 +451,10 @@ For example `(x,x)` matches `(1,1)` but not `(1,2)`.
 Extractors:
 
 An extractor function must take one argument--the value to be matched against--and should
-return either one value (for nullary and unary patterns), or a tuple of values (for 2+-ary
-patterns). Returning `nothing` indicates the extractor does not match.
-For example to destruct an array into its head and tail:
+return either a tuple of values or `nothing`. Returning `nothing` indicates the extractor
+does not match. For example to destruct an array into its head and tail:
 
-    function Cons(xs)
+    function unapply_Cons(xs)
         if isempty(xs)
             return nothing
         else
@@ -469,7 +468,7 @@ For example to destruct an array into its head and tail:
 
 Or here's one to extract the polar coordinates of a point:
 
-    function Polar(p)
+    function unapply_Polar(p)
         @match p begin
             (x, y) =>
                 begin
