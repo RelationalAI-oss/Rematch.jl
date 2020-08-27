@@ -95,7 +95,7 @@ Note that unlike the _assignment syntax_, this does not create any variable bind
 
 * `_` matches anything
 * `foo` matches anything, binds value to `foo`
-* `~Foo(x,y,z)` calls the extractor function `Foo(value)` which returns a tuple matching `(x,y,z)`
+* `~Foo(x,y,z)` calls the extractor function `unapply_Foo(value)` which returns a tuple matching `(x,y,z)`
 * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
 * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`
 * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
