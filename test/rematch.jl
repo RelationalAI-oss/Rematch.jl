@@ -50,28 +50,25 @@ assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
 end
 
 @testset "Match using extractors" begin
-    function sub1(x) x+1 end
+    function sub1(x) tuple(x+1) end
 
     # sub1(4) == 3
     let x = nothing
-        @test (@match 3 begin
-           ~sub1(x) => x
-        end) == 4
-
+        @test (@match 3 begin ~sub1(x) => x end) == 4
         @test x == nothing
     end
 
-    function cons(xs)
+    function Cons(xs)
         isempty(xs) ? nothing : (xs[1], xs[2:end])
     end
 
-    # ~cons(1, ~cons(4, (~cons(9, []))) == [1,4,9]
+    # ~Cons(1, ~Cons(4, (~Cons(9, []))) == [1,4,9]
     let a = nothing
         b = nothing
         c = nothing
 
         @test (@match [1,4,9] begin
-           ~cons(a, ~cons(b, ~cons(c, []))) => (a,b,c)
+           ~Cons(a, ~Cons(b, ~Cons(c, []))) => (a,b,c)
         end) == (1,4,9)
 
         @test a == nothing
@@ -80,7 +77,7 @@ end
     end
 
     @match [1,2,3] begin
-        ~cons(x, xs) =>
+        ~Cons(x, xs) =>
             begin
                 @test x == 1
                 @test xs == [2,3]
@@ -139,13 +136,7 @@ end
             if m == nothing
                 return nothing
             else
-                if length(m.captures) == 0
-                    return true
-                elseif length(m.captures) == 1
-                    return m.captures[1]
-                else
-                    return tuple(m.captures...)
-                end
+                return tuple(m.captures...)
             end
         end
     end

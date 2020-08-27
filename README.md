@@ -119,10 +119,14 @@ Patterns can use _extractor functions_ (also known as _active patterns_).
 These are just any function that takes a value to match and returns either `nothing` (indicating match failure)
 or a tuple that decomposes the value. The tuple is then matched against other patterns.
 
-An extractor function must take one argument--the value to be matched against--and should return either
-one value (for nullary and unary patterns), or a tuple of values (for 2+-ary patterns).
-Returning `nothing` indicates the extractor does not match.
-For example to destruct an array into its head and tail:
+An extractor function must take one argument--the value to be matched against--and should return 
+a `Union{Tuple{T,...}, Nothing}`.  Returning `nothing` indicates the extractor does not match.
+If a tuple is returned, the components are matched against the subpatterns of the pattern.
+
+Extractor patterns are written `~fn(p1, p2, ...)`, where `fn` is the name of the extractor function
+and `p1`, `p2`, etc., are subpatterns to match against the returned tuple.
+
+For example, to destruct an array into its head and tail, one could write the following function:
 
 ```julia
 function Cons(xs)
@@ -138,7 +142,7 @@ end
 end
 ```
 
-Or, here's one that extracts the polar coordinates of a cartesian point:
+Here's an extractor that extracts the polar coordinates of a Cartesian point:
 
 ```julia
 function Polar(p)
@@ -157,6 +161,31 @@ end
     ~Polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
 end
 ```
+
+Extractors can even be higher-order.
+
+```julia
+function Re(r::Regex)
+    x -> begin
+        m = match(r, x)
+        if m == nothing
+            return nothing
+        else
+            return tuple(m.captures...)
+        end
+    end
+end
+
+@match "abc123def" begin
+    ~Re(r"(\w+?)(\d+)(\w+)")(a,x,d) =>
+        begin
+            @assert a == "abc"
+            @assert x == "123"
+            @assert d == "def"
+        end
+    _ => @assert false
+end
+
 
 ## Differences from [Match.jl](https://github.com/kmsquire/Match.jl)
 

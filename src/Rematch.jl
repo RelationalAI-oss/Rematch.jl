@@ -190,34 +190,23 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         end
     elseif @capture(pattern, ~p_) && @capture(p, f_(subpatterns__))
         # Extractor call.
-
-        # Structs and extractor calls have the same syntax. We distinguish them
-        # by evaluating the symbol and checking if it's a function.
-        # Note that if the extractor is a complex expression, it is evaluated now.
+        # Extractor calls must begin with `~`.
 
         result = gensym("unapply")
         len = length(subpatterns)
 
-        # The function should take one argument and return either `nothing`, if the
-        # argument does not match, or a tuple if it does match.
+        # The function should take one argument and return a `Union{Tuple{T,...}, Nothing}`.
+        # If the argument does not match, nothing should be returned.
+        # If the argument does match, a tuple should be returned, which is then matched against
+        # the subpatterns.
         if len == 0
             # If there are no subpatterns, the result value is just checked for
             # nothingness.
             return quote
                 $(esc(f))($value) !== nothing
             end
-        elseif len == 1
-            # If there is just one subpattern, the result value is matched against it.
-            return quote
-                begin
-                    $result = $(esc(f))($value)
-                    $result !== nothing &&
-                    $(handle_destruct(__module__, result, subpatterns[1], bound, asserts))
-                end
-            end
         else
-            # If there is more than one subpattern, the result value is matched
-            # against a tuple pattern.
+            # If there are subpatterns, the result value is matched against a tuple pattern.
             return quote
                 begin
                     $result = $(esc(f))($value)
