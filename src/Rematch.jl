@@ -29,7 +29,7 @@ fieldcount.
 end
 
 """
-    handle_destruct_fields(__module__, value, pattern, subpatterns, len, get, bound, asserts; allow_splat=true)
+    handle_destruct_fields(value, pattern, subpatterns, len, get, bound, asserts; allow_splat=true)
 
 Destruct a tuple, vector, or struct `value` with the given `pattern`.
 Returns a boolean expression that evaluates to true if the pattern matches.
@@ -40,7 +40,6 @@ The value is indexed by `get` from 1 to `len` and element i is matched against `
 If `allow_splat` is true, one `...` is allowed among the subpatterns.
 """
 function handle_destruct_fields(
-    __module__,
     value::Symbol,
     pattern,
     subpatterns,
@@ -78,12 +77,12 @@ function handle_destruct_fields(
         end,
         @splice (i, (field, subpattern)) in enumerate(fields) quote
             $(Symbol("$(value)_$i")) = $get($value, $field)
-            $(handle_destruct(__module__, Symbol("$(value)_$i"), subpattern, bound, asserts))
+            $(handle_destruct(Symbol("$(value)_$i"), subpattern, bound, asserts))
         end)
 end
 
 """
-handle_destruct(__module__, value, pattern, bound, asserts)
+handle_destruct(value, pattern, bound, asserts)
 
 Destruct `value` with the given `pattern`.
 
@@ -91,7 +90,7 @@ The pattern is compiled to a boolean expression which evaluates to `true` if the
 pattern matches. Variables bound in the pattern are added to the `bound` set.
 Assertions are added to the `asserts` vector.
 """
-function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol}, asserts::Vector{Expr})
+function handle_destruct(value::Symbol, pattern, bound::Set{Symbol}, asserts::Vector{Expr})
     if pattern == :(_)
         # wildcard
         return true
@@ -136,8 +135,8 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         bound1 = copy(bound)
         bound2 = copy(bound)
 
-        body1 = handle_destruct(__module__, value, subpattern1, bound1, asserts)
-        body2 = handle_destruct(__module__, value, subpattern2, bound2, asserts)
+        body1 = handle_destruct(value, subpattern1, bound1, asserts)
+        body2 = handle_destruct(value, subpattern2, bound2, asserts)
         union!(bound, intersect(bound1, bound2))
 
         return quote
@@ -147,8 +146,8 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
           (@capture(pattern, f_(subpattern1_, subpattern2_)) && f == :&)
         # conjunction
 
-        body1 = handle_destruct(__module__, value, subpattern1, bound, asserts)
-        body2 = handle_destruct(__module__, value, subpattern2, bound, asserts)
+        body1 = handle_destruct(value, subpattern1, bound, asserts)
+        body2 = handle_destruct(value, subpattern2, bound, asserts)
 
         return quote
             $body1 && $body2
@@ -161,7 +160,7 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         guard = pattern.args[2]
 
         return quote
-            $(handle_destruct(__module__, value, subpattern, bound, asserts)) &&
+            $(handle_destruct(value, subpattern, bound, asserts)) &&
             let $(bound...)
                 # bind variables locally so they can be used in the guard
                 $(@splice variable in bound quote
@@ -215,7 +214,6 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
                     $result !== nothing &&
                     ($result isa Tuple) &&
                     $(handle_destruct_fields(
-                        __module__,
                         result,
                         pattern,
                         subpatterns,
@@ -284,7 +282,6 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
             # information in Julia 0.6
             $value isa $(esc(T)) &&
             $(handle_destruct_fields(
-                __module__,
                 value,
                 pattern,
                 subpatterns,
@@ -300,7 +297,6 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         return quote
             ($value isa Tuple) &&
             $(handle_destruct_fields(
-                __module__,
                 value,
                 pattern,
                 subpatterns,
@@ -316,7 +312,6 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         return quote
             ($value isa AbstractArray) &&
             $(handle_destruct_fields(
-                __module__,
                 value,
                 pattern,
                 subpatterns,
@@ -331,18 +326,18 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         # typeassert
         return quote
             ($value isa $(esc(T))) &&
-            $(handle_destruct(__module__, value, subpattern, bound, asserts))
+            $(handle_destruct(value, subpattern, bound, asserts))
         end
     else
         error("Unrecognized pattern syntax: $pattern")
     end
 end
 
-function handle_match_eq(__module__, expr)
+function handle_match_eq(expr)
     if @capture(expr, pattern_ = value_)
         asserts = Expr[]
         bound = Set{Symbol}()
-        body = handle_destruct(__module__, :value, pattern, bound, asserts)
+        body = handle_destruct(:value, pattern, bound, asserts)
         return quote
             $(asserts...)
             value = $(esc(value))
@@ -357,10 +352,10 @@ function handle_match_eq(__module__, expr)
     end
 end
 
-function handle_match_case(__module__, value, case, tail, asserts)
+function handle_match_case(value, case, tail, asserts)
     if @capture(case, pattern_ => result_)
         bound = Set{Symbol}()
-        body = handle_destruct(__module__, :value, pattern, bound, asserts)
+        body = handle_destruct(:value, pattern, bound, asserts)
 
         return quote
             if $body
@@ -380,13 +375,13 @@ function handle_match_case(__module__, value, case, tail, asserts)
     end
 end
 
-function handle_match_cases(__module__, value, match)
+function handle_match_cases(value, match)
     if @capture(match, begin cases__ end)
         tail = :(throw(MatchFailure(value)))
         asserts = Expr[]
 
         for case in reverse(cases)
-            tail = handle_match_case(__module__, :value, case, tail, asserts)
+            tail = handle_match_case(:value, case, tail, asserts)
         end
 
         return quote
@@ -406,7 +401,7 @@ If `value` matches `pattern`, bind variables and return `value`.
 Otherwise, throw `MatchFailure`.
 """
 macro match(expr)
-    handle_match_eq(__module__, expr)
+    handle_match_eq(expr)
 end
 
 """
@@ -420,7 +415,7 @@ Return `result` for the first matching `pattern`.
 If there are no matches, throw `MatchFailure`.
 """
 macro match(value, cases)
-    handle_match_cases(__module__, value, cases)
+    handle_match_cases(value, cases)
 end
 
 """
