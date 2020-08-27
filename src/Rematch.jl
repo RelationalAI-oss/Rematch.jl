@@ -83,24 +83,6 @@ function handle_destruct_fields(
 end
 
 """
-    is_name_expr(e)
-
-Returns true if `e` is a symbol or a qualified name expression.
-"""
-function is_name_expr(e)
-    if e isa Symbol
-        return true
-    end
-    if e isa QuoteNode
-        return is_name_expr(e.value)
-    end
-    if e isa Expr && e.head == :(.)
-        return Base.all(is_name_expr, e.args)
-    end
-    return false
-end
-
-"""
 handle_destruct(__module__, value, pattern, bound, asserts)
 
 Destruct `value` with the given `pattern`.
