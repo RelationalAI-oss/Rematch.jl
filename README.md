@@ -122,14 +122,15 @@ or a tuple that decomposes the value. The tuple is then matched against other pa
 An extractor function must take one argument--the value to be matched against--and should return 
 a `Union{Tuple{T,...}, Nothing}`.  Returning `nothing` indicates the extractor does not match.
 If a tuple is returned, the components are matched against the subpatterns of the pattern.
+Extractor functions should have names of the form `unapply_X`, for some name `X`.
 
-Extractor patterns are written `~fn(p1, p2, ...)`, where `fn` is the name of the extractor function
+Extractor patterns are written `~X(p1, p2, ...)`, where `unapply_X` is the name of the extractor function
 and `p1`, `p2`, etc., are subpatterns to match against the returned tuple.
 
 For example, to destruct an array into its head and tail, one could write the following function:
 
 ```julia
-function Cons(xs)
+function unapply_Cons(xs)
     if isempty(xs)
         return nothing
     else
@@ -145,7 +146,7 @@ end
 Here's an extractor that extracts the polar coordinates of a Cartesian point:
 
 ```julia
-function Polar(p)
+function unapply_Polar(p)
     @match p begin
         (x, y) =>
             begin
@@ -165,7 +166,7 @@ end
 Extractors can even be higher-order.
 
 ```julia
-function Re(r::Regex)
+function unapply_Re(r::Regex)
     x -> begin
         m = match(r, x)
         if m == nothing

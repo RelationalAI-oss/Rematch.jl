@@ -50,7 +50,7 @@ assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
 end
 
 @testset "Match using extractors" begin
-    function sub1(x) tuple(x+1) end
+    function unapply_sub1(x) tuple(x+1) end
 
     # sub1(4) == 3
     let x = nothing
@@ -58,7 +58,7 @@ end
         @test x == nothing
     end
 
-    function Cons(xs)
+    function unapply_Cons(xs)
         isempty(xs) ? nothing : (xs[1], xs[2:end])
     end
 
@@ -84,7 +84,7 @@ end
             end
     end
 
-    function Snoc(xs)
+    function unapply_Snoc(xs)
         isempty(xs) ? nothing : (xs[1:end-1], xs[end])
     end
 
@@ -109,7 +109,7 @@ end
             end
     end
 
-    function Polar(p)
+    function unapply_Polar(p)
         @match p begin
             (x, y) =>
                 begin
@@ -130,7 +130,7 @@ end
     end
 
     # A more complex extractor.
-    function Re(r::Regex)
+    function unapply_Re(r::Regex)
         x -> begin
             m = match(r, x)
             if m == nothing
@@ -175,7 +175,7 @@ end
     end
 
     # Extractor for red nodes
-    function Red(t::Tree)
+    function unapply_Red(t::Tree)
         @match t begin
             # Use color == B since we can't match against an enum value R
             T(color, a, x, b) where (color == R) => (a, x, b)
@@ -184,7 +184,7 @@ end
     end
 
     # Extractor for black nodes
-    function Blk(t::Tree)
+    function unapply_Blk(t::Tree)
         @match t begin
             # Use color == B since we can't match against an enum value B
             T(color, a, x, b) where (color == B) => (a, x, b)

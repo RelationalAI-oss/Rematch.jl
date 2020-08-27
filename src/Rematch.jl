@@ -195,6 +195,26 @@ function handle_destruct(__module__, value::Symbol, pattern, bound::Set{Symbol},
         result = gensym("unapply")
         len = length(subpatterns)
 
+        function replace_call(f)
+            if f isa Symbol
+                return Symbol("unapply_$f")
+            elseif @capture(f, g_(args__))
+                h = replace_call(g)
+                if h == nothing
+                    return nothing
+                end
+                return Expr(:call, replace_call(g), args...)
+            else
+                return nothing
+            end
+        end
+
+        f = replace_call(f)
+
+        if f === nothing
+            error("Extractor pattern could not be parsed: should be a call to a named function.")
+        end
+
         # The function should take one argument and return a `Union{Tuple{T,...}, Nothing}`.
         # If the argument does not match, nothing should be returned.
         # If the argument does match, a tuple should be returned, which is then matched against
