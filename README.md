@@ -186,7 +186,7 @@ end
         end
     _ => @assert false
 end
-
+```
 
 ## Differences from [Match.jl](https://github.com/kmsquire/Match.jl)
 
