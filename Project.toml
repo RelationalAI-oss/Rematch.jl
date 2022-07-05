@@ -1,7 +1,7 @@
 name = "Rematch"
 uuid = "bfecab0d-fd4d-5014-a23f-56c5fae6447a"
 authors = ["RelationalAI"]
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
