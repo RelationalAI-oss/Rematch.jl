@@ -10,7 +10,7 @@ macro splice(iterator, body)
   Expr(:..., :(($(esc(body)) for $(esc(iterator.args[2])) in $(esc(iterator.args[3])))))
 end
 
-struct MatchFailure
+struct MatchFailure <: Exception
     value
 end
 
