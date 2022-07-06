@@ -4,11 +4,11 @@ authors = ["RelationalAI"]
 version = "0.3.3"
 
 [deps]
-Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 
 [compat]
-julia = "0.7, 1"
+julia = "1"
+MacroTools = "0.4, 0.5"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
