@@ -1,5 +1,4 @@
-using Compat.Test
-using Compat.InteractiveUtils
+using Test
 using Rematch
 import Rematch: MatchFailure
 
@@ -199,16 +198,17 @@ end
     infer1(x) = @match x begin
         (a, b..., c) => a
     end
-    @test @code_typed(infer1((:ok,2,3,4)))[2] == Symbol
+    @test @inferred(infer1((:ok,2,3,4))) == :ok
+
     infer2(x) = @match x begin
         (a, b..., c) => c
     end
 
     if VERSION >= v"0.7.0-DEV"
-        @test @code_typed(infer2((1,2,3,:ok)))[2] == Symbol
+        @test @inferred(infer2((1,2,3,:ok))) == :ok
     else
         # can't infer x[4-0] - fixed in Julia 0.7
-        @test_broken @code_typed(infer2((1,2,3,:ok)))[2] == Symbol
+        @test_broken @inferred(infer2((1,2,3,:ok))) == :ok
     end
 end
 
@@ -218,13 +218,13 @@ end
         Foo(_,y::Symbol) => y
         Foo(x::Symbol,_) => x
     end
-    @test @code_typed(infer3(Foo(1,2)))[2] == Symbol
+    @test @inferred(infer3(Foo(1,:ok))) == :ok
     infer4(foo) = @match foo begin
         Foo(x,y::Symbol) => y
         Foo(x::Symbol,y) => x
     end
     # TODO should we `let` in branches rather than exporting variables?
-    @test_broken @code_typed(infer4(Foo(1,2)))[2] == Symbol
+    @test_broken @inferred(infer4(Foo(1,:ok))) == :ok
 end
 
 @testset "Nested Guards" begin
