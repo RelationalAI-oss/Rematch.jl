@@ -95,6 +95,7 @@ Note that unlike the _assignment syntax_, this does not create any variable bind
 
 * `_` matches anything
 * `foo` matches anything, binds value to `foo`
+* `~Foo(x,y,z)` calls the extractor function `unapply_Foo(value)` which returns a tuple matching `(x,y,z)`
 * `Foo(x,y,z)` matches structs of type `Foo` with fields matching `x,y,z`
 * `Foo(y=1)` matches structs of type `Foo` whose `y` field equals `1`
 * `[x,y,z]` matches `AbstractArray`s with 3 entries matching `x,y,z`
@@ -112,6 +113,81 @@ Patterns can be nested arbitrarily.
 
 Repeated variables only match if they are equal (`==`). For example `(x,x)` matches `(1,1)` but not `(1,2)`.
 
+### Extractors
+
+Patterns can use _extractor functions_ (also known as _active patterns_).
+These are just any function that takes a value to match and returns either `nothing` (indicating match failure)
+or a tuple that decomposes the value. The tuple is then matched against other patterns.
+
+An extractor function must take one argument--the value to be matched against--and should return 
+a `Union{Tuple{T,...}, Nothing}`.  Returning `nothing` indicates the extractor does not match.
+If a tuple is returned, the components are matched against the subpatterns of the pattern.
+Extractor functions should have names of the form `unapply_X`, for some name `X`.
+
+Extractor patterns are written `~X(p1, p2, ...)`, where `unapply_X` is the name of the extractor function
+and `p1`, `p2`, etc., are subpatterns to match against the returned tuple.
+
+For example, to destruct an array into its head and tail, one could write the following function:
+
+```julia
+function unapply_Cons(xs)
+    if isempty(xs)
+        return nothing
+    else
+        return ([xs[1], xs[2:end]])
+    end
+end
+
+@match [1,2,3] begin
+    ~Cons(x, xs) => @assert x == 1 && xs == [2,3]
+end
+```
+
+Here's an extractor that extracts the polar coordinates of a Cartesian point:
+
+```julia
+function unapply_Polar(p)
+    @match p begin
+        (x, y) =>
+            begin
+                r = sqrt(x^2+y^2)
+                theta = atan(y, x)
+                return (r, theta)
+            end
+        _ => return nothing
+    end
+end
+
+@match (1,1) begin
+    ~Polar(r, theta) => @assert r == sqrt(2) && theta == pi/4
+end
+```
+
+Extractors can even be higher-order.
+
+```julia
+function unapply_Re(r::Regex)
+    x -> begin
+        m = match(r, x)
+        if m == nothing
+            return nothing
+        else
+            return tuple(m.captures...)
+        end
+    end
+end
+
+@match "abc123def" begin
+    ~Re(r"(\w+?)(\d+)(\w+)")(a,x,d) =>
+        begin
+            @assert a == "abc"
+            @assert x == "123"
+            @assert d == "def"
+        end
+    _ => @assert false
+end
+```
+
 ## Differences from [Match.jl](https://github.com/kmsquire/Match.jl)
 
 This package was branched from the original [Match.jl](https://github.com/kmsquire/Match.jl). It now differs in several ways:
@@ -122,5 +198,6 @@ This package was branched from the original [Match.jl](https://github.com/kmsqui
 * The syntax for guards is `x where x > 1` instead of `x, if x > 1 end` and can occur anywhere in a pattern.
 * Structs can be matched by field-names, allowing partial matches: `@match Foo(1,2) begin Foo(y=2) => :ok end` returns `:ok`.
 * Patterns support interpolation, ie `let x=1; @match ($x,$(x+1)) = (1,2); end` is a match.
+* Extractor functions can be used in patterns.
 * No support (yet) for matching `Regex` or `UnitRange`.
 * No support (yet) for matching against multidimensional arrays - all array patterns use linear indexing.

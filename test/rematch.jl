@@ -17,32 +17,239 @@ assertion_error = (VERSION >= v"0.7.0-DEV") ? LoadError : AssertionError
         y
     end
 
-    # test basic match
-    let x = nothing
-        @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
-        @test x == 1
-    end
-
-    # variables not bound if match fails
-    let x = nothing
-        @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
-        @test x == nothing
-    end
-
-    # doesn't overwrite variables in outer scope
-    let x = nothing
-        @test (@match Foo(1,2) begin
-            Foo(x,2) => x
-        end) == 1
-        @test x == nothing
-    end
-
-    # variables not bound if guard fails
-    let x = nothing
-        @test_throws MatchFailure @match Foo(1,2) begin
-          Foo(x, 2) where x != 1 => :ok
+    @eval begin
+        # test basic match
+        let x = nothing
+            @test (@match Foo(x,2) = Foo(1,2)) == Foo(1,2)
+            @test x == 1
         end
+
+        # variables not bound if match fails
+        let x = nothing
+            @test_throws MatchFailure @match Foo(x, 3) = Foo(1,2)
+            @test x == nothing
+        end
+
+        # doesn't overwrite variables in outer scope
+        let x = nothing
+            @test (@match Foo(1,2) begin
+                Foo(x,2) => x
+            end) == 1
+            @test x == nothing
+        end
+
+        # variables not bound if guard fails
+        let x = nothing
+            @test_throws MatchFailure @match Foo(1,2) begin
+              Foo(x, 2) where x != 1 => :ok
+            end
+            @test x == nothing
+        end
+    end
+end
+
+@testset "Match using extractors" begin
+    function unapply_sub1(x) tuple(x+1) end
+
+    # sub1(4) == 3
+    let x = nothing
+        @test (@match 3 begin ~sub1(x) => x end) == 4
         @test x == nothing
+    end
+
+    function unapply_Cons(xs)
+        isempty(xs) ? nothing : (xs[1], xs[2:end])
+    end
+
+    # ~Cons(1, ~Cons(4, (~Cons(9, []))) == [1,4,9]
+    let a = nothing
+        b = nothing
+        c = nothing
+
+        @test (@match [1,4,9] begin
+           ~Cons(a, ~Cons(b, ~Cons(c, []))) => (a,b,c)
+        end) == (1,4,9)
+
+        @test a == nothing
+        @test b == nothing
+        @test c == nothing
+    end
+
+    @match [1,2,3] begin
+        ~Cons(x, xs) =>
+            begin
+                @test x == 1
+                @test xs == [2,3]
+            end
+    end
+
+    function unapply_Snoc(xs)
+        isempty(xs) ? nothing : (xs[1:end-1], xs[end])
+    end
+
+    let a = nothing
+        b = nothing
+        c = nothing
+
+        @test (@match [1,4,9] begin
+            ~Snoc(~Snoc(~Snoc([], c), b), a) => (a,b,c)
+        end) == (9,4,1)
+
+        @test a == nothing
+        @test b == nothing
+        @test c == nothing
+    end
+
+    @match [1,2,3] begin
+        ~Snoc(xs, x) =>
+            begin
+                @test x == 3
+                @test xs == [1,2]
+            end
+    end
+
+    function unapply_Polar(p)
+        @match p begin
+            (x, y) =>
+                begin
+                    r = sqrt(x^2+y^2)
+                    theta = atan(y, x)
+                    return (r, theta)
+                end
+            _ => return nothing
+        end
+    end
+
+    @match (1,1) begin
+        ~Polar(r, theta) =>
+           begin
+               @test r == sqrt(2)
+               @test theta == pi/4
+           end
+    end
+
+    # A more complex extractor.
+    function unapply_Re(r::Regex)
+        x -> begin
+            m = match(r, x)
+            if m == nothing
+                return nothing
+            else
+                return tuple(m.captures...)
+            end
+        end
+    end
+
+    @match "abc123def" begin
+        ~Re(r"(\w+?)(\d+)(\w+)")(a,x,d) =>
+            begin
+                @test a == "abc"
+                @test x == "123"
+                @test d == "def"
+            end
+        _ => @test false
+    end
+
+    @match "abc123def" begin
+        ~Re(r"(\d+)")(x) => @test x == "123"
+        _ => @test false
+    end
+
+    @match "abc123def" begin
+        ~Re(r"\d+")() => @test true
+        _ => @test false
+    end
+end
+
+@testset "Red-black trees with extractors" begin
+    # Okasaki-style red-black trees
+    @enum Color R B
+    @eval abstract type Tree end
+    @eval struct E <: Tree end
+    @eval struct T <: Tree
+        color::Color
+        a::Tree
+        x
+        b::Tree
+    end
+
+    # Extractor for red nodes
+    function unapply_Red(t::Tree)
+        @match t begin
+            # Use color == B since we can't match against an enum value R
+            T(color, a, x, b) where (color == R) => (a, x, b)
+            _ => nothing
+        end
+    end
+
+    # Extractor for black nodes
+    function unapply_Blk(t::Tree)
+        @match t begin
+            # Use color == B since we can't match against an enum value B
+            T(color, a, x, b) where (color == B) => (a, x, b)
+            _ => nothing
+        end
+    end
+
+    # Constructors
+    function Red(a, x, b) T(R, a, x, b) end
+    function Blk(a, x, b) T(B, a, x, b) end
+
+    function member(x, t::Tree)
+        @match t begin
+            E() => false
+            T(_, a, y, b) where (x < y) => member(x, a)
+            T(_, a, y, b) where (x > y) => member(x, b)
+            _ => true
+        end
+    end
+
+    function insert(x, s::Tree)
+        function ins(t)
+            @match t begin
+                E() => Red(E(), x, E())
+                T(color, a, y, b) where (x < y) => balance(T(color, ins(a), y, b))
+                T(color, a, y, b) where (x > y) => balance(T(color, a, y, ins(b)))
+                t => t
+            end
+        end
+
+        @match T(_, a, y, b) = ins(s)
+
+        Blk(a, y, b)
+    end
+
+    function balance(t::T)
+        @match t begin
+            ( ~Blk(~Red(~Red(a, x, b), y, c), z, d) ||
+              ~Blk(~Red(a, x, ~Red(b, y, c)), z, d) ||
+              ~Blk(a, x, ~Red(~Red(b, y, c), z, d)) ||
+              ~Blk(a, x, ~Red(b, y, ~Red(c, z, d))) ) => Red(Blk(a, x, b), y, Blk(c, z, d))
+            t => t
+        end
+    end
+
+    function height(t::Tree)
+        @match t begin
+            E() => 0
+            T(_, a, x, b) => max(height(a), height(b)) + 1
+        end
+    end
+
+    @test member(3, insert(3, E()))
+
+    n = 100
+
+    t = E()
+    for x in 1:n
+        t = insert(x, t)
+    end
+
+    theoretical_max_height = 2 * floor(log(2, n+1))
+    @test height(t) <= theoretical_max_height
+
+    for x in 1:n
+        @test member(x, t)
     end
 end
 
